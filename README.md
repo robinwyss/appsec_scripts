@@ -8,3 +8,6 @@ Generates a CSV with all versions of log4j and the hosts and processes on which 
 
 ### [softwareComponents4pgi.py](softwareComponents4pgi.py)
 Exports all Software Components for a given Process Group Instance
+
+### [libraries_by_host.py](libraries_by_host.py)
+Exports a list of all hosts with information about processes and libraries
