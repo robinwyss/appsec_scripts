@@ -23,7 +23,7 @@ python3 export_vulnerabilities.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c
 ### [softwareComponents4pgi.py](softwareComponents4pgi.py)
 Exports all Software Components for a given Process Group Instance
 
-Required token scope: Read entities (`1`entities.read`)
+Required token scope: Read entities (`entities.read`)
 
 ##### Examples
 ```bash
