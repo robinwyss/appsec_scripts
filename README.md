@@ -5,13 +5,19 @@
 - Dynatrace API Token with Read Entities (`entities.read`) and Read Security Problems (`securityProblems.read`) scope 
 
 
-
 ### [export_vulnerabilities.py](export_vulnerabilities.py)
 exports all vulnerabilites to a CSV file
 
 Required token scope: Read security problems (`securityProblems.read`)
 
-##### Examples
+#### Arguments
+```
+-e ENVIRONMENT, --env ENVIRONMENT   The Dynatrace Environment to use (e.g. https://xxxyyyyy.live.dynatrace.com)                    
+-t TOKEN, --token TOKEN             The Dynatrace API Token to use (e.g. dt0c01.XXX...)                  
+-d, --details                       Fetch the details for each security problem (takes longer)
+```
+
+#### Examples
 ```bash
 python3 export_vulnerabilities.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c01.XXX... 
 ```
@@ -23,9 +29,16 @@ python3 export_vulnerabilities.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c
 ### [softwareComponents4pgi.py](softwareComponents4pgi.py)
 Exports all Software Components for a given Process Group Instance
 
-Required token scope: Read entities (`1`entities.read`)
+Required token scope: Read entities (`entities.read`)
 
-##### Examples
+#### Arguments
+```
+-e ENVIRONMENT, --env ENVIRONMENT   The Dynatrace Environment to use (e.g. https://xxxyyyyy.live.dynatrace.com)                    
+-t TOKEN, --token TOKEN             The Dynatrace API Token to use (e.g. dt0c01.XXX...)                  
+-i PGIID, --id PGIID                The ID of the Process Group Instance for which libraries should be retrieved
+```
+
+#### Examples
 ```bash
 python3 softwareComponents4pgi.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c01.XXX... -id PROCESS_GROUP_INSTANCE_XXX
 ```
@@ -33,9 +46,17 @@ python3 softwareComponents4pgi.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c
 ### [libraries_by_host.py](libraries_by_host.py)
 Exports a list of all hosts with information about processes and libraries
 
-Required token scope: Read entities (`entities.read`)
+Required token scope: Read entities (`entities.read`) and Read security problems (`securityProblems.read`) if the -v flag is used
 
-##### Examples
+#### Arguments
+```
+-e ENVIRONMENT, --env ENVIRONMENT   The Dynatrace Environment to use (e.g. https://xxxyyyyy.live.dynatrace.com)                    
+-t TOKEN, --token TOKEN             The Dynatrace API Token to use (e.g. dt0c01.XXX...)     
+-l LIBRARY, --library LIBRARY       Filter resulsts by a specific library (e.g. org.apache.logging.log4j), matches the libraries with a startsWith
+-v, --vulnerabilities               Flag specifying if the vulnerabilites for each library should be retrieved               
+```
+
+#### Examples
 Retrieve all libraries from all hosts
 ```bash
 python3 libraries_by_host.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c01.XXX... 
