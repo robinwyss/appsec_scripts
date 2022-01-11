@@ -30,6 +30,7 @@ python3 export_vulnerabilities.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c
 Exports all Software Components for a given Process Group Instance
 
 Required token scope: Read entities (`entities.read`)
+<<<<<<< HEAD
 
 #### Arguments
 ```
@@ -37,6 +38,8 @@ Required token scope: Read entities (`entities.read`)
 -t TOKEN, --token TOKEN             The Dynatrace API Token to use (e.g. dt0c01.XXX...)                  
 -i PGIID, --id PGIID                The ID of the Process Group Instance for which libraries should be retrieved
 ```
+=======
+>>>>>>> 54f3f67924fd146512416d6b508b94c6d41dfb03
 
 #### Examples
 ```bash
