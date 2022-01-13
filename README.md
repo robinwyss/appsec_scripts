@@ -37,7 +37,6 @@ Required token scope: Read entities (`entities.read`)
 -t TOKEN, --token TOKEN             The Dynatrace API Token to use (e.g. dt0c01.XXX...)                  
 -i PGIID, --id PGIID                The ID of the Process Group Instance for which libraries should be retrieved
 ```
-=======
 
 #### Examples
 ```bash
