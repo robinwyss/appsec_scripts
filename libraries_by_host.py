@@ -9,15 +9,17 @@ parser.add_argument("-e", "--env", dest="environment", help="The Dynatrace Envir
 parser.add_argument("-t", "--token", dest="token", help="The Dynatrace API Token to use", required=True)
 parser.add_argument("-l", "--library", dest="library", help="Filter resulsts by a specific library", required=False)
 parser.add_argument("-v", "--vulnerabilities", dest="vulnerabilities", help="Get the vulnerabilities for each Software Component", action='store_true')
+parser.add_argument("-i", "--hostIds", dest="hostIds", help="Specify the host ids for which the data should be retrieved", required=False)
 
 args = parser.parse_args()
 
 env = args.environment
 apiToken = args.token
 includeVulnerabilities = args.vulnerabilities
+hostIds = args.hostIds
 
 libraryToFilterBy = args.library
-processType = 'JAVA'
+processType = ['JAVA', 'DOTNET']
 
 dynatraceApi = DynatraceApi(env, apiToken)
 
@@ -77,13 +79,16 @@ with open('libraries_by_host.csv', 'w', newline='') as f:
         header += ['cve','title','displayId','url']
     writer.writerow(header)
 
-    hosts = dynatraceApi.getHosts()
+    if hostIds:
+        hosts = dynatraceApi.getHostsById(hostIds)
+    else: 
+        hosts = dynatraceApi.getHosts()
     for host in hosts:
         if 'isProcessOf' in host['toRelationships']:
             processReferences = host['toRelationships']['isProcessOf']
             processes = dynatraceApi.getProcesses(processReferences)
             for process in processes:
-                if 'processType' in process['properties'] and process['properties']['processType'] == processType and 'isSoftwareComponentOfPgi' in process['toRelationships']:
+                if 'processType' in process['properties'] and 'isSoftwareComponentOfPgi' in process['toRelationships']:
                     softwareComponentRefs = process['toRelationships']['isSoftwareComponentOfPgi']
                     softwareComponents = dynatraceApi.getSoftwareComponentDetails(softwareComponentRefs)
                     if libraryToFilterBy:

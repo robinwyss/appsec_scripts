@@ -80,6 +80,16 @@ class DynatraceApi:
         :return list of entities (dictionary)
         """
         return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf&entitySelector=type("HOST")')
+    
+    def getHostsById(self, entityId):
+        """
+        Get all hosts with the relationships to processes (PGIs)
+        :param str id of the host to be retireved, multiple ids can be specified, separated by ',' 
+        :return list of entities (dictionary)
+        """
+        ids = entityId.split(',')
+        entityIds = ', '.join(f'"{i}"' for i in ids)
+        return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf&entitySelector=entityId('+entityIds+')')
 
     def getAllEntitiesByIDs(self, endpoint, entityRefs):
         """
