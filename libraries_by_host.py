@@ -10,6 +10,7 @@ parser.add_argument("-t", "--token", dest="token", help="The Dynatrace API Token
 parser.add_argument("-l", "--library", dest="library", help="Filter resulsts by a specific library", required=False)
 parser.add_argument("-v", "--vulnerabilities", dest="vulnerabilities", help="Get the vulnerabilities for each Software Component", action='store_true')
 parser.add_argument("-i", "--hostIds", dest="hostIds", help="Specify the host ids for which the data should be retrieved", required=False)
+parser.add_argument("-k", "--insecure", dest="insecure", help="Skip SSL certificate validation", action='store_true')
 
 args = parser.parse_args()
 
@@ -17,11 +18,12 @@ env = args.environment
 apiToken = args.token
 includeVulnerabilities = args.vulnerabilities
 hostIds = args.hostIds
+verifySSL = not args.insecure
 
 libraryToFilterBy = args.library
 processType = ['JAVA', 'DOTNET']
 
-dynatraceApi = DynatraceApi(env, apiToken)
+dynatraceApi = DynatraceApi(env, apiToken, verifySSL)
 
 def getProperty(entity, propertyName):
     """

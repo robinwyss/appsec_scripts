@@ -7,6 +7,7 @@
   - pip install requests
 - Dynatrace API Token with Read Entities (`entities.read`) and Read Security Problems (`securityProblems.read`) scope 
 
+## Usage
 
 ### [export_vulnerabilities.py](export_vulnerabilities.py)
 exports all vulnerabilites to a CSV file
@@ -68,4 +69,13 @@ python3 libraries_by_host.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c01.XX
 Filter by a specific library (e.g. log4j)
 ```bash
 python3 libraries_by_host.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c01.XXX... -l org.apache.logging.log4j
+```
+
+## Additional parameters
+
+### Skip SSL certificate validation
+If your environment doesn't have a valid SSL certificate, you can skip the certificate validation with the following flag
+> I am not going to lecture you on the importance of using SSL certificates here, you know the drill. 
+```
+-k , --insecure   Skip SSL certificate validation       
 ```

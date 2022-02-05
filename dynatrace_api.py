@@ -1,9 +1,10 @@
 import requests
 
 class DynatraceApi:
-    def __init__(self, tenant, apiToken):
+    def __init__(self, tenant, apiToken, verifySSL = True):
         self.tenant = tenant
         self.apiToken = apiToken
+        self.verifySSL = verifySSL
 
     def queryApi(self, endpoint):
         """
@@ -12,7 +13,7 @@ class DynatraceApi:
         return: response as json
         """
         authHeader = {'Authorization' : 'Api-Token '+ self.apiToken}
-        response = requests.get(self.tenant + endpoint, headers=authHeader)
+        response = requests.get(self.tenant + endpoint, headers=authHeader, verify=self.verifySSL)
         print('.', end="", flush=True) # print a dot for every call to show activity
         return response.json()
  
