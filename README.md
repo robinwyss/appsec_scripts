@@ -80,7 +80,7 @@ Required token scope: Read entities (`entities.read`)
 ```
 -e ENVIRONMENT, --env ENVIRONMENT   The Dynatrace Environment to use (e.g. https://xxxyyyyy.live.dynatrace.com)                    
 -t TOKEN, --token TOKEN             The Dynatrace API Token to use (e.g. dt0c01.XXX...)     
--a, --all               Prints all processes, even the ones that don't report libraries
+-a, --all                           Prints all processes, even the ones that don't report libraries
 -i, --hostIds                       Optional flat to specify the hostIds for which the information should be retrieved (if ommited all hosts will be included). Multiple IDs can be specified, sparated by ',' (no spaces)               
 ```
 
