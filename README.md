@@ -71,6 +71,29 @@ Filter by a specific library (e.g. log4j)
 python3 libraries_by_host.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c01.XXX... -l org.apache.logging.log4j
 ```
 
+### [processes_reporting_libraries.py](processes_reporting_libraries.py)
+Exports a list of all hosts with information about processes and if they report any library. By default only the hosts and processes that report libraries are exported, but with the -a flag all hosts and processes are exported.
+
+Required token scope: Read entities (`entities.read`)
+
+#### Arguments
+```
+-e ENVIRONMENT, --env ENVIRONMENT   The Dynatrace Environment to use (e.g. https://xxxyyyyy.live.dynatrace.com)                    
+-t TOKEN, --token TOKEN             The Dynatrace API Token to use (e.g. dt0c01.XXX...)     
+-a, --all               Prints all processes, even the ones that don't report libraries
+-i, --hostIds                       Optional flat to specify the hostIds for which the information should be retrieved (if ommited all hosts will be included). Multiple IDs can be specified, sparated by ',' (no spaces)               
+```
+
+#### Examples
+Retrieve hosts and processes that report libraries. 
+```bash
+python3 processes_reporting_libraries.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c01.XXX... 
+```
+Retrieve all hosts and processes, whether the process reports any libraries is defined in the last colument: (Y)es / (N)o
+```bash
+python3 processes_reporting_libraries.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c01.XXX... -a
+```
+
 ## Additional parameters
 
 ### Skip SSL certificate validation
