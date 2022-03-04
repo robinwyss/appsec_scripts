@@ -3,3 +3,4 @@ env/
 .dccache
 .vscode
 *.json
+output.log

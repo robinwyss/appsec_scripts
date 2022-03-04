@@ -94,6 +94,9 @@ Retrieve all hosts and processes, whether the process reports any libraries is d
 python3 processes_reporting_libraries.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c01.XXX... -a
 ```
 
+## Logging
+Logs are written to `output.log`, by default the log level is set to INFO, but it can be [changed to DEBUG](#set-log-level-to-debug)
+
 ## Additional parameters
 
 ### Skip SSL certificate validation
@@ -101,4 +104,10 @@ If your environment doesn't have a valid SSL certificate, you can skip the certi
 > I am not going to lecture you on the importance of using SSL certificates here, you know the drill. 
 ```
 -k , --insecure   Skip SSL certificate validation       
+```
+### Set log level to DEBUG
+By default the log level is set to INFO, it can be changed to debug with the following flag:
+> On DEBUG, the full response for each request is logged.
+```
+--debug   Sets the log level to debug
 ```

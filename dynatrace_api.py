@@ -1,4 +1,5 @@
 import requests
+import logging
 
 class DynatraceApi:
     def __init__(self, tenant, apiToken, verifySSL = True):
@@ -13,7 +14,14 @@ class DynatraceApi:
         return: response as json
         """
         authHeader = {'Authorization' : 'Api-Token '+ self.apiToken}
-        response = requests.get(self.tenant + endpoint, headers=authHeader, verify=self.verifySSL)
+        url = self.tenant + endpoint
+        response = requests.get(url, headers=authHeader, verify=self.verifySSL)
+        logging.info('API Call Status: %s Request: %s', response.status_code, url);
+        logging.debug('Response: %s', response.content)
+        if response.reason != 'OK':
+            logging.error('Request %s failed', url)
+            logging.error('Status Code: %s (%s), Response: %s', response.status_code, response.reason, response.content)
+            raise RuntimeError(f'API request failed: {response.status_code} ({response.reason})', response.content)
         print('.', end="", flush=True) # print a dot for every call to show activity
         return response.json()
  

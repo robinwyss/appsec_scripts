@@ -1,16 +1,22 @@
 #!/usr/bin/env python
+import sys
 from argparse import ArgumentParser
 import csv
 from dynatrace_api import DynatraceApi
+import logging
+import logging.config
+logging.basicConfig(filename='output.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # get the Dynatrace Environmemnt (URL) and the API Token with arguments
 parser = ArgumentParser()
 parser.add_argument("-e", "--env", dest="environment", help="The Dynatrace Environment to query", required=True)
 parser.add_argument("-t", "--token", dest="token", help="The Dynatrace API Token to use", required=True)
+parser.add_argument("--debug", dest="debug", help="Set log level to debbug", action='store_true')
+parser.add_argument("-k", "--insecure", dest="insecure", help="Skip SSL certificate validation", action='store_true')
+
 parser.add_argument("-l", "--library", dest="library", help="Filter resulsts by a specific library", required=False)
 parser.add_argument("-v", "--vulnerabilities", dest="vulnerabilities", help="Get the vulnerabilities for each Software Component", action='store_true')
 parser.add_argument("-i", "--hostIds", dest="hostIds", help="Specify the host ids for which the data should be retrieved", required=False)
-parser.add_argument("-k", "--insecure", dest="insecure", help="Skip SSL certificate validation", action='store_true')
 
 args = parser.parse_args()
 
@@ -19,8 +25,16 @@ apiToken = args.token
 includeVulnerabilities = args.vulnerabilities
 hostIds = args.hostIds
 verifySSL = not args.insecure
-
 libraryToFilterBy = args.library
+debug = args.debug
+
+if debug:
+    logging.getLogger().setLevel(logging.DEBUG)
+
+logging.info("="*200)
+logging.info("Running %s ", " ".join(sys.argv))
+logging.info("="*200)
+
 processType = ['JAVA', 'DOTNET']
 
 dynatraceApi = DynatraceApi(env, apiToken, verifySSL)
