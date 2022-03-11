@@ -5,6 +5,7 @@ import csv
 from dynatrace_api import DynatraceApi
 import logging
 import logging.config
+from datetime import datetime
 logging.basicConfig(filename='output.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # get the Dynatrace Environmemnt (URL) and the API Token with arguments
@@ -75,10 +76,32 @@ def fieldsToPrint(host, process):
         process['entityId'],
         getProperty(process, 'processType')]
 
+def timeStampToDate(timestamp):
+    return datetime.utcfromtimestamp(timestamp / 1000).strftime('%Y-%m-%d %H:%M:%S')
+
+def getLatestRestart(processId):
+    response = dynatraceApi.getRestartEvents(processId)
+    if len(response['events']) > 0:
+        return timeStampToDate(response['events'][0]['endTime'])
+    else:
+        "-"
+
+def getFields(host, process, count):
+    lastRestart = getLatestRestart(process['entityId'])
+    processInfoV1 = dynatraceApi.getProcessV1(process['entityId'])
+    firstSeen = timeStampToDate(processInfoV1['firstSeenTimestamp'])
+    lastSeen = timeStampToDate(processInfoV1['lastSeenTimestamp'])
+
+    fields = fieldsToPrint(host, process)
+    fields += ['Y' if count > 0 else 'N', count]
+    fields += [lastRestart, firstSeen, lastSeen]
+    fields += [getProperty(process, 'installerVersion')]
+    return fields
+
 with open('processes_reporting_libs.csv', 'w', newline='') as f:
     writer = csv.writer(f)
     # header
-    header = ['host.name', 'host.id', 'process.name', 'process.id', 'process.type', 'reportedLibs', 'nbrOfLibs']
+    header = ['host.name', 'host.id', 'process.name', 'process.id', 'process.type', 'reportedLibs', 'nbrOfLibs', 'lastRestart', 'firstSeen', 'lastSeen','agentVersion']
     writer.writerow(header)
 
     if hostIds:
@@ -93,10 +116,8 @@ with open('processes_reporting_libs.csv', 'w', newline='') as f:
                 if 'processType' in process['properties'] and getProperty(process, 'processType') in processTypes:
                     if 'isSoftwareComponentOfPgi' in process['toRelationships']:
                         sc_count = len(process['toRelationships']['isSoftwareComponentOfPgi'])
-                        fields = fieldsToPrint(host, process)
-                        fields += ['Y', sc_count]
+                        fields = getFields(host, process, sc_count)
                         writer.writerow(fields)
                     elif printall:
-                        fields = fieldsToPrint(host, process)
-                        fields += ['N', 0] # 0 for the number of libraries
+                        fields = getFields(host, process, 0)
                         writer.writerow(fields)

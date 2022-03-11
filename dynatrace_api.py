@@ -1,6 +1,8 @@
 import requests
 import logging
 
+timeframe = 'now-1h'
+
 class DynatraceApi:
     def __init__(self, tenant, apiToken, verifySSL = True):
         self.tenant = tenant
@@ -64,7 +66,7 @@ class DynatraceApi:
         :param string ID of the Process Group Instance for which the Software Components should be retrieved
         :return list of SoftwareComponents (dictionary)
         """
-        response = self.queryApi('/api/v2/entities?fields=toRelationships.isSoftwareComponentOfPgi&entitySelector=entityId("'+pgiID+'")')
+        response = self.queryApi('/api/v2/entities?fields=toRelationships.isSoftwareComponentOfPgi&entitySelector=entityId("'+pgiID+'")&from='+timeframe)
         return response["entities"][0]["toRelationships"]["isSoftwareComponentOfPgi"]
 
     def getSoftwareComponentDetails(self, softwareComponents):
@@ -73,7 +75,7 @@ class DynatraceApi:
         :param list of entity references (dic) (e.g. [{'id': ...}])
         :return list of entities (dictionary)
         """
-        return self.getAllEntitiesByIDs('/api/v2/entities?fields=fromRelationships,properties.packageName,properties.softwareComponentFileName,properties.softwareComponentShortName,properties.softwareComponentType', softwareComponents)
+        return self.getAllEntitiesByIDs('/api/v2/entities?fields=fromRelationships,properties.packageName,properties.softwareComponentFileName,properties.softwareComponentShortName,properties.softwareComponentType&from='+timeframe, softwareComponents)
 
     def getProcesses(self, processes):
         """
@@ -81,14 +83,14 @@ class DynatraceApi:
         :param list of entity references (dic) (e.g. [{'id': ...}])
         :return list of entities (dictionary)
         """
-        return self.getAllEntitiesByIDs('/api/v2/entities?fields=toRelationships.isSoftwareComponentOfPgi,properties.processType,properties.softwareTechnologies', processes)
+        return self.getAllEntitiesByIDs('/api/v2/entities?fields=toRelationships.isSoftwareComponentOfPgi,properties.processType,properties.softwareTechnologies,properties.installerVersion&from='+timeframe, processes)
 
     def getHosts(self):
         """
         Get all hosts with the relationships to processes (PGIs)
         :return list of entities (dictionary)
         """
-        return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf&entitySelector=type("HOST")')
+        return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf&entitySelector=type("HOST")&from='+timeframe)
     
     def getHostsById(self, entityId):
         """
@@ -98,7 +100,7 @@ class DynatraceApi:
         """
         ids = entityId.split(',')
         entityIds = ', '.join(f'"{i}"' for i in ids)
-        return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf&entitySelector=entityId('+entityIds+')')
+        return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf&entitySelector=entityId('+entityIds+')&from='+timeframe)
 
     def getAllEntitiesByIDs(self, endpoint, entityRefs):
         """
@@ -128,6 +130,18 @@ class DynatraceApi:
             response = self.queryApi('/api/v2/entities?nextPageKey='+response["nextPageKey"])
             entities += response["entities"]
         return entities
+
+    def getRestartEvents(self,processId):
+        """
+        Retireves the latest restart event for a given process
+        """
+        return self.queryApi('/api/v2/events?from=now-12M&eventSelector=eventType("PROCESS_RESTART")&entitySelector=entityId("'+processId+'")')
+
+    def getProcessV1(self,processId):
+        """
+        Retireves the latest restart event for a given process
+        """
+        return self.queryApi('/api/v1/entity/infrastructure/processes/'+processId)
 
     def getIdsFromEntities(self, entities):
         """
