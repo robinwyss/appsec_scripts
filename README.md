@@ -5,7 +5,7 @@
 - [pandas](https://pypi.org/project/pandas/) and [requests](https://pypi.org/project/requests/) libraries
   - pip install pandas
   - pip install requests
-- Dynatrace API Token with Read Entities (`entities.read`) and Read Security Problems (`securityProblems.read`) scope (for *processes_reporting_libraries.py* `DataExport` and `events.read` ) 
+- Dynatrace API Token with Read Entities (`entities.read`) and Read Security Problems (`securityProblems.read`) scope (for *processes_reporting_libraries.py* `DataExport` and `events.read` are required as well) 
 
 ## Usage
 
