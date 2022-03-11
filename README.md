@@ -5,7 +5,7 @@
 - [pandas](https://pypi.org/project/pandas/) and [requests](https://pypi.org/project/requests/) libraries
   - pip install pandas
   - pip install requests
-- Dynatrace API Token with Read Entities (`entities.read`) and Read Security Problems (`securityProblems.read`) scope 
+- Dynatrace API Token with Read Entities (`entities.read`) and Read Security Problems (`securityProblems.read`) scope (for *processes_reporting_libraries.py* `DataExport` and `events.read` ) 
 
 ## Usage
 
@@ -74,7 +74,7 @@ python3 libraries_by_host.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c01.XX
 ### [processes_reporting_libraries.py](processes_reporting_libraries.py)
 Exports a list of all hosts with information about processes and if they report any library. By default only the hosts and processes that report libraries are exported, but with the -a flag all hosts and processes are exported.
 
-Required token scope: Read entities (`entities.read`)
+Required token scope: Read entities (`entities.read`) / Access problem and event feed, metrics, and topology (`DataExport`) / Read events (`events.read`)
 
 #### Arguments
 ```
