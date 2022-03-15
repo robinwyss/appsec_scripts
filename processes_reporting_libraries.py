@@ -94,14 +94,14 @@ def getFields(host, process, count):
 
     fields = fieldsToPrint(host, process)
     fields += ['Y' if count > 0 else 'N', count]
-    fields += [lastRestart, firstSeen, lastSeen]
-    fields += [getProperty(process, 'installerVersion')]
+    fields += [lastRestart, firstSeen, lastSeen,
+        getProperty(process, 'installerVersion'), getProperty(host, 'memoryTotal'), getProperty(host, 'monitoringMode')]
     return fields
 
 with open('processes_reporting_libs.csv', 'w', newline='') as f:
     writer = csv.writer(f)
     # header
-    header = ['host.name', 'host.id', 'process.name', 'process.id', 'process.type', 'reportedLibs', 'nbrOfLibs', 'lastRestart', 'firstSeen', 'lastSeen','agentVersion']
+    header = ['host.name', 'host.id', 'process.name', 'process.id', 'process.type', 'reportedLibs', 'nbrOfLibs', 'lastRestart', 'firstSeen', 'lastSeen','agentVersion','memoryTotal','monitoringMode']
     writer.writerow(header)
 
     if hostIds:

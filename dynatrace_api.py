@@ -90,7 +90,7 @@ class DynatraceApi:
         Get all hosts with the relationships to processes (PGIs)
         :return list of entities (dictionary)
         """
-        return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf&entitySelector=type("HOST")&from='+timeframe)
+        return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf,properties.memoryTotal,properties.monitoringMode&entitySelector=type("HOST")&from='+timeframe)
     
     def getHostsById(self, entityId):
         """
