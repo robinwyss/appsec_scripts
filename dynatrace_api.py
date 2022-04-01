@@ -34,6 +34,13 @@ class DynatraceApi:
         """
         return self.__querySecurityProblems('/api/v2/securityProblems?pageSize=500')
 
+    def getSecurityProblemsByCVE(self, cveID):
+        """
+        get a list of all security problems from the specified environment
+        makes subsequent calls to the API if the results are paged.
+        """
+        return self.__querySecurityProblems('/api/v2/securityProblems?pageSize=500&securityProblemSelector=cveId("'+cveID+'")')
+
     def getSecurityProblemsForSoftwareComponent(self,scID):
         """
         get a list of all security problems from the specified environment
@@ -58,7 +65,7 @@ class DynatraceApi:
         """
         gets the details for a specific security problem
         """
-        return self.queryApi('/api/v2/securityProblems/'+securityProblemId+'?fields=%2BrelatedEntities,%2BriskAssessment')
+        return self.queryApi('/api/v2/securityProblems/'+securityProblemId+'?fields=%2BrelatedEntities,%2BriskAssessment,%2BaffectedEntities')
 
     def getSoftwareComponentsForPGI(self, pgiID):
         """
@@ -83,7 +90,7 @@ class DynatraceApi:
         :param list of entity references (dic) (e.g. [{'id': ...}])
         :return list of entities (dictionary)
         """
-        return self.getAllEntitiesByIDs('/api/v2/entities?fields=toRelationships.isSoftwareComponentOfPgi,properties.processType,properties.softwareTechnologies,properties.installerVersion&from='+timeframe, processes)
+        return self.getAllEntitiesByIDs('/api/v2/entities?fields=toRelationships.isSoftwareComponentOfPgi,properties.processType,properties.softwareTechnologies,properties.installerVersion,fromRelationships.isProcessOf&from='+timeframe, processes)
 
     def getHosts(self):
         """
@@ -149,7 +156,10 @@ class DynatraceApi:
         param: list of entities
         return string
         """
-        return ','.join('"'+i['id']+'"' for i in entities)
+        if len(entities) > 0 and isinstance(entities[0], str):
+            return ','.join(entities)
+        else:
+            return ','.join('"'+i['id']+'"' for i in entities)
 
     def splitIntoChunks(self, lst, n):
         """Yield successive n-sized chunks from lst."""
