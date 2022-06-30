@@ -7,6 +7,18 @@
   - pip install requests
 - Dynatrace API Token with Read Entities (`entities.read`) and Read Security Problems (`securityProblems.read`) scope (for *processes_reporting_libraries.py* `DataExport` and `events.read` are required as well) 
 
+## Available scripts
+- [Export Vulnerabilities](#export_vulnerabilitiespy)
+  - Exports a list of all vulnerabilities to a CSV file
+- [Software Components for Process Group Instance](#softwareComponents4pgipy)
+  - Retrieves all software components (libraries) for a specific process group instance
+- [Libraries grouped by host and process](#libraries_by_hostpy)
+  - Exports all libraries (optionally with vulnberabilities) grouped by host and process to a CSV
+- [Vulnerabilities grouped by host and process](#vulnerabilities_by_hostpy)
+  - Exports all  vulnerabilities grouped by host and process to a CSV
+- [Processes reporting libraries ](#processes_reporting_librariespy)
+  - Generates a list of all processes that are reporting software components and exports to a CSV
+
 ## Usage
 
 ### [export_vulnerabilities.py](export_vulnerabilities.py)
@@ -69,6 +81,24 @@ python3 libraries_by_host.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c01.XX
 Filter by a specific library (e.g. log4j)
 ```bash
 python3 libraries_by_host.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c01.XXX... -l org.apache.logging.log4j
+```
+
+### [vulnerabilities_by_host.py](vulnerabilities_by_host.py)
+Exports a list of all hosts with information about processes and vulnerabilities
+
+Required token scope: Read entities (`entities.read`) and Read security problems (`securityProblems.read`) if the -v flag is used
+
+#### Arguments
+```
+-e ENVIRONMENT, --env ENVIRONMENT   The Dynatrace Environment to use (e.g. https://xxxyyyyy.live.dynatrace.com)                    
+-t TOKEN, --token TOKEN             The Dynatrace API Token to use (e.g. dt0c01.XXX...)     
+-i, --hostIds                       Optional flat to specify the hostIds for which the information should be retrieved (if ommited all hosts will be included). Multiple IDs can be specified, sparated by ',' (no spaces)               
+```
+
+#### Examples
+Retrieve all vulnerabilities from all hosts
+```bash
+python3 vulnerabilities_by_host.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c01.XXX... 
 ```
 
 ### [processes_reporting_libraries.py](processes_reporting_libraries.py)
