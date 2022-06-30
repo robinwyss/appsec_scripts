@@ -1,5 +1,7 @@
 import requests
 import logging
+import time
+from functools import lru_cache
 
 timeframe = 'now-1h'
 
@@ -17,12 +19,13 @@ class DynatraceApi:
         """
         authHeader = {'Authorization' : 'Api-Token '+ self.apiToken}
         url = self.tenant + endpoint
+        start_time=time.time()
         response = requests.get(url, headers=authHeader, verify=self.verifySSL)
-        logging.info('API Call Status: %s Request: %s', response.status_code, url);
-        logging.debug('Response: %s', response.content)
+        logging.info(f'API Call Status: {response.status_code} (took {(time.time() - start_time):.2f}s) Request: {url} ');
+        logging.debug('Response: {response.content}' )
         if response.reason != 'OK':
-            logging.error('Request %s failed', url)
-            logging.error('Status Code: %s (%s), Response: %s', response.status_code, response.reason, response.content)
+            logging.error(f'Request {url} failed')
+            logging.error('Status Code: {response.status_code} ({response.reason}), Response: {response.content}')
             raise RuntimeError(f'API request failed: {response.status_code} ({response.reason})', response.content)
         print('.', end="", flush=True) # print a dot for every call to show activity
         return response.json()
@@ -33,13 +36,33 @@ class DynatraceApi:
         makes subsequent calls to the API if the results are paged.
         """
         return self.__querySecurityProblems('/api/v2/securityProblems?pageSize=500')
-
+   
+    
+    @lru_cache(maxsize=None)
+    def getSecurityProblemsByCVE(self, cveID):
+        """
+        get a list of all security problems from the specified environment
+        makes subsequent calls to the API if the results are paged.
+        """
+        return self.__querySecurityProblems('/api/v2/securityProblems?pageSize=500&securityProblemSelector=cveId("'+cveID+'")')
+    
+    
+    @lru_cache(maxsize=None)
     def getSecurityProblemsForSoftwareComponent(self,scID):
         """
         get a list of all security problems from the specified environment
         makes subsequent calls to the API if the results are paged.
         """
-        return self.__querySecurityProblems('/api/v2/securityProblems?securityProblemSelector=vulnerableComponentIds("'+scID+'")')
+        return self.__querySecurityProblems('/api/v2/securityProblems?securityProblemSelector=vulnerableComponentIds("'+scID+'")&fields=%2BriskAssessment,%2BmanagementZones&from=-2h')
+
+    
+    @lru_cache(maxsize=None)
+    def getSecurityProblemsForProcessGroup(self,pgID):
+        """
+        get a list of all security problems from the specified environment
+        makes subsequent calls to the API if the results are paged.
+        """
+        return self.__querySecurityProblems('/api/v2/securityProblems?securityProblemSelector=affectedPgIds("'+pgID+'")&fields=%2BriskAssessment,%2BmanagementZones&from=-2h')
 
     def __querySecurityProblems(self, endpoint):
         """
@@ -54,12 +77,16 @@ class DynatraceApi:
             securityProblems += response["securityProblems"]
         return securityProblems
 
+    
+    @lru_cache(maxsize=None)
     def getSecurityProblemDetails(self, securityProblemId):
         """
         gets the details for a specific security problem
         """
         return self.queryApi('/api/v2/securityProblems/'+securityProblemId+'?fields=%2BrelatedEntities,%2BriskAssessment')
 
+    
+    @lru_cache(maxsize=None)
     def getSoftwareComponentsForPGI(self, pgiID):
         """
         Get all Software Components for a given PGI ID
@@ -83,7 +110,7 @@ class DynatraceApi:
         :param list of entity references (dic) (e.g. [{'id': ...}])
         :return list of entities (dictionary)
         """
-        return self.getAllEntitiesByIDs('/api/v2/entities?fields=toRelationships.isSoftwareComponentOfPgi,properties.processType,properties.softwareTechnologies,properties.installerVersion&from='+timeframe, processes)
+        return self.getAllEntitiesByIDs('/api/v2/entities?fields=toRelationships.isSoftwareComponentOfPgi,properties,fromRelationships.isProcessOf,fromRelationships.isInstanceOf&from='+timeframe, processes)
 
     def getHosts(self):
         """
@@ -92,6 +119,8 @@ class DynatraceApi:
         """
         return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf,properties.memoryTotal,properties.monitoringMode&entitySelector=type("HOST")&from='+timeframe)
     
+    
+    @lru_cache(maxsize=None)
     def getHostsById(self, entityId):
         """
         Get all hosts with the relationships to processes (PGIs)
@@ -131,12 +160,16 @@ class DynatraceApi:
             entities += response["entities"]
         return entities
 
+    
+    @lru_cache(maxsize=None)
     def getRestartEvents(self,processId):
         """
         Retireves the latest restart event for a given process
         """
         return self.queryApi('/api/v2/events?from=now-12M&eventSelector=eventType("PROCESS_RESTART")&entitySelector=entityId("'+processId+'")')
 
+    
+    @lru_cache(maxsize=None)
     def getProcessV1(self,processId):
         """
         Retireves the latest restart event for a given process
