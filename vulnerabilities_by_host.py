@@ -31,7 +31,7 @@ def getMetadata(entity, propertyName):
     metadata = getProperty(entity, 'metadata')
     if property:
         for entry in metadata:
-            if entry['key']:
+            if entry['key'] == propertyName:
                 return entry['value']
     return ""
 
