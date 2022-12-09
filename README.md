@@ -124,6 +124,24 @@ Retrieve all hosts and processes, whether the process reports any libraries is d
 python3 processes_reporting_libraries.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c01.XXX... -a
 ```
 
+### [softwareComponents.py](softwareComponents.py)
+Exports a list of all software components (libraries) with information about processes that use them. 
+
+Required token scope: Read entities (`entities.read`) / Access problem and event feed, metrics, and topology (`DataExport`) / Read events (`events.read`)
+
+#### Arguments
+```
+-e ENVIRONMENT, --env ENVIRONMENT   The Dynatrace Environment to use (e.g. https://xxxyyyyy.live.dynatrace.com)                    
+-t TOKEN, --token TOKEN             The Dynatrace API Token to use (e.g. dt0c01.XXX...)     
+-n, --name                          The name of the library to export, the name pattern is groupid:artifactid:version (for java) and it matches the begining of the name (startsWith).               
+```
+
+#### Examples
+Retrieve all processes using snakeyaml
+```bash
+python3 processes_reporting_libraries.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c01.XXX... -n org.yaml:snakeyaml
+```
+
 ## Logging
 Logs are written to `output.log`, by default the log level is set to INFO, but it can be [changed to DEBUG](#set-log-level-to-debug)
 

@@ -96,6 +96,17 @@ class DynatraceApi:
         response = self.queryApi('/api/v2/entities?fields=toRelationships.isSoftwareComponentOfPgi&entitySelector=entityId("'+pgiID+'")&from='+timeframe)
         return response["entities"][0]["toRelationships"]["isSoftwareComponentOfPgi"]
 
+    @lru_cache(maxsize=None)
+    def getSoftwareComponentsByName(self, name):
+        """
+        Get all Software Components filtered by name (startsWith)
+        :param string ID of the Process Group Instance for which the Software Components should be retrieved
+        :return list of SoftwareComponents (dictionary)
+        """
+        response = self.queryApi(
+            '/api/v2/entities?fields=fromRelationships.isSoftwareComponentOfPgi&entitySelector=type("SOFTWARE_COMPONENT"),entityName.startsWith("'+name+'")&from=' + timeframe)
+        return response["entities"]
+
     def getSoftwareComponentDetails(self, softwareComponents):
         """
         Retrieves the details of the specfied software components
@@ -106,8 +117,16 @@ class DynatraceApi:
 
     def getProcesses(self, processes):
         """
-        Retrieves the details of the specfied processes, with thechnolgy details and the relations to software components
-        :param list of entity references (dic) (e.g. [{'id': ...}])
+        Retrieves the details of the specfied processes, with technology details and the relations to software components
+        :param processes: list of entity references (dic) (e.g. [{'id': ...}])
+        :return list of entities (dictionary)
+        """
+        return self.getAllEntitiesByIDs('/api/v2/entities?from='+timeframe, processes)
+
+    def getProcessesWithDetails(self, processes):
+        """
+        Retrieves the details of the specfied processes, with technology details and the relations to software components
+        :param processes: list of entity references (dic) (e.g. [{'id': ...}])
         :return list of entities (dictionary)
         """
         return self.getAllEntitiesByIDs('/api/v2/entities?fields=toRelationships.isSoftwareComponentOfPgi,properties,fromRelationships.isProcessOf,fromRelationships.isInstanceOf&from='+timeframe, processes)

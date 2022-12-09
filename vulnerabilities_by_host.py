@@ -47,7 +47,8 @@ def getCmdPath(process):
         return ""
 
 def fieldsToPrint(host, process, securityProblem):
-    cve = ''.join(securityProblem['cveIds'])
+    cve = ''.join(securityProblem.get('cveIds', []))
+    mzs = ','.join(map(lambda mz: mz['name'], securityProblem.get('managementZones', [])))
     return [host['displayName'],
         host['entityId'],
         process['displayName'],
@@ -64,7 +65,8 @@ def fieldsToPrint(host, process, securityProblem):
         securityProblem['riskAssessment']['baseRiskScore'],
         getMetadata(process, 'EXE_PATH'),
         getMetadata(process, 'COMMAND_LINE_ARGS'), 
-        getCmdPath(process)
+        getCmdPath(process),
+        mzs
         ]
 
 start_time = time.time()
@@ -99,7 +101,7 @@ dynatraceApi = DynatraceApi(env, apiToken, verifySSL)
 with open('vulnerabilities_by_host.csv', 'w', newline='') as f:
     writer = csv.writer(f, delimiter=";", quoting=csv.QUOTE_ALL)
     # header
-    header = ['host.name', 'host.id', 'process.name', 'process.id', 'process.technologyVersion', 'library.packageName', 'cve','title','displayId','url', 'DSS-level', 'DSS-score', 'CVSS-level', 'CVSS-score', 'Exe Path', 'Commandline args', 'Command path']
+    header = ['host.name', 'host.id', 'process.name', 'process.id', 'process.technologyVersion', 'library.packageName', 'cve','title','displayId','url', 'DSS-level', 'DSS-score', 'CVSS-level', 'CVSS-score', 'Exe Path', 'Commandline args', 'Command path', 'Management Zone']
     writer.writerow(header)
 
     if hostIds:
@@ -109,7 +111,7 @@ with open('vulnerabilities_by_host.csv', 'w', newline='') as f:
     for host in hosts:
         if 'isProcessOf' in host['toRelationships']:
             processReferences = host['toRelationships']['isProcessOf']
-            processes = dynatraceApi.getProcesses(processReferences)
+            processes = dynatraceApi.getProcessesWithDetails(processReferences)
             for process in processes:
                 process_group_id = process['fromRelationships']['isInstanceOf'][0]['id']
                 securityProblems = dynatraceApi.getSecurityProblemsForProcessGroup(process_group_id)

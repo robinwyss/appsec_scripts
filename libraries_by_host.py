@@ -93,7 +93,7 @@ with open('libraries_by_host.csv', 'w', newline='') as f:
     for host in hosts:
         if 'isProcessOf' in host['toRelationships']:
             processReferences = host['toRelationships']['isProcessOf']
-            processes = dynatraceApi.getProcesses(processReferences)
+            processes = dynatraceApi.getProcessesWithDetails(processReferences)
             for process in processes:
                 if 'processType' in process['properties'] and 'isSoftwareComponentOfPgi' in process['toRelationships']:
                     softwareComponentRefs = process['toRelationships']['isSoftwareComponentOfPgi']

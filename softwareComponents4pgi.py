@@ -7,7 +7,7 @@ import logging
 import logging.config
 logging.basicConfig(filename='output.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# get the Dynatrace Environmemnt (URL) and the API Token with arguments
+# get the Dynatrace Environment (URL) and the API Token with arguments
 # with the details parameter, the details for each security problem are fetched
 parser = ArgumentParser()
 parser.add_argument("-e", "--env", dest="environment", help="The Dynatrace Environment to query", required=True)
