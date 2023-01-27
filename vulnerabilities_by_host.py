@@ -45,12 +45,12 @@ def getCmdPath(process):
         return getMetadata(process, 'NODE_JS_SCRIPT_NAME')
     else:
         return ""
-
+#added host[managementzone] SRS
 def fieldsToPrint(host, process, securityProblem):
-    cve = ''.join(securityProblem.get('cveIds', []))
-    mzs = ','.join(map(lambda mz: mz['name'], securityProblem.get('managementZones', [])))
+    cve = ''.join(securityProblem['cveIds'])
     return [host['displayName'],
         host['entityId'],
+        host['managementZones'],
         process['displayName'],
         process['entityId'],
         getProperty(process, 'jvmClrVersion'),
@@ -65,8 +65,7 @@ def fieldsToPrint(host, process, securityProblem):
         securityProblem['riskAssessment']['baseRiskScore'],
         getMetadata(process, 'EXE_PATH'),
         getMetadata(process, 'COMMAND_LINE_ARGS'), 
-        getCmdPath(process),
-        mzs
+        getCmdPath(process)
         ]
 
 start_time = time.time()
@@ -88,10 +87,10 @@ hostIds = args.hostIds
 verifySSL = not args.insecure
 debug = args.debug
 
-if debug:
-    logging.getLogger().setLevel(logging.DEBUG)
+#if debug:
+logging.getLogger().setLevel(logging.DEBUG)
 
-logging.basicConfig(filename='output.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(filename='output.log', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logging.info("="*200)
 logging.info("Running %s ", re.sub(r"dt0c01\.[\S]+","dt0c01.XXX"," ".join(sys.argv)))
 logging.info("="*200)
@@ -101,7 +100,8 @@ dynatraceApi = DynatraceApi(env, apiToken, verifySSL)
 with open('vulnerabilities_by_host.csv', 'w', newline='') as f:
     writer = csv.writer(f, delimiter=";", quoting=csv.QUOTE_ALL)
     # header
-    header = ['host.name', 'host.id', 'process.name', 'process.id', 'process.technologyVersion', 'library.packageName', 'cve','title','displayId','url', 'DSS-level', 'DSS-score', 'CVSS-level', 'CVSS-score', 'Exe Path', 'Commandline args', 'Command path', 'Management Zone']
+    #added host.mz SRS
+    header = ['host.name', 'host.id','host.mz', 'process.name', 'process.id', 'process.technologyVersion', 'library.packageName', 'cve','title','displayId','url', 'DSS-level', 'DSS-score', 'CVSS-level', 'CVSS-score', 'Exe Path', 'Commandline args', 'Command path']
     writer.writerow(header)
 
     if hostIds:
@@ -111,7 +111,7 @@ with open('vulnerabilities_by_host.csv', 'w', newline='') as f:
     for host in hosts:
         if 'isProcessOf' in host['toRelationships']:
             processReferences = host['toRelationships']['isProcessOf']
-            processes = dynatraceApi.getProcessesWithDetails(processReferences)
+            processes = dynatraceApi.getProcesses(processReferences)
             for process in processes:
                 process_group_id = process['fromRelationships']['isInstanceOf'][0]['id']
                 securityProblems = dynatraceApi.getSecurityProblemsForProcessGroup(process_group_id)

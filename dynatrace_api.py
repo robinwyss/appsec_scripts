@@ -18,14 +18,16 @@ class DynatraceApi:
         return: response as json
         """
         authHeader = {'Authorization' : 'Api-Token '+ self.apiToken}
+        #added hard-coded cookies for managed tenant access comment out for SaaS env
+        #cookies = {'JSESSIONID' : 'node012652menbarn5oo5zyvsr9hfh8188460.node0','b925d32c': 'SNCF7MNFZR46O6XNJDDR6TMDCY' }
         url = self.tenant + endpoint
         start_time=time.time()
-        response = requests.get(url, headers=authHeader, verify=self.verifySSL)
+        response = requests.get(url, headers=authHeader, verify=self.verifySSL, cookies=cookies)
         logging.info(f'API Call Status: {response.status_code} (took {(time.time() - start_time):.2f}s) Request: {url} ');
-        logging.debug('Response: {response.content}' )
+        logging.debug(f'Response: {response.content}' )
         if response.reason != 'OK':
             logging.error(f'Request {url} failed')
-            logging.error('Status Code: {response.status_code} ({response.reason}), Response: {response.content}')
+            logging.error(f'Status Code: {response.status_code} ({response.reason}), Response: {response.content}')
             raise RuntimeError(f'API request failed: {response.status_code} ({response.reason})', response.content)
         print('.', end="", flush=True) # print a dot for every call to show activity
         return response.json()
@@ -83,7 +85,7 @@ class DynatraceApi:
         """
         gets the details for a specific security problem
         """
-        return self.queryApi('/api/v2/securityProblems/'+securityProblemId+'?fields=%2BrelatedEntities,%2BriskAssessment')
+        return self.queryApi('/api/v2/securityProblems/'+securityProblemId+'?fields=%2BrelatedEntities,%2BriskAssessment, %2BmanagementZones')
 
     
     @lru_cache(maxsize=None)
@@ -96,17 +98,6 @@ class DynatraceApi:
         response = self.queryApi('/api/v2/entities?fields=toRelationships.isSoftwareComponentOfPgi&entitySelector=entityId("'+pgiID+'")&from='+timeframe)
         return response["entities"][0]["toRelationships"]["isSoftwareComponentOfPgi"]
 
-    @lru_cache(maxsize=None)
-    def getSoftwareComponentsByName(self, name):
-        """
-        Get all Software Components filtered by name (startsWith)
-        :param string ID of the Process Group Instance for which the Software Components should be retrieved
-        :return list of SoftwareComponents (dictionary)
-        """
-        response = self.queryApi(
-            '/api/v2/entities?fields=fromRelationships.isSoftwareComponentOfPgi&entitySelector=type("SOFTWARE_COMPONENT"),entityName.startsWith("'+name+'")&from=' + timeframe)
-        return response["entities"]
-
     def getSoftwareComponentDetails(self, softwareComponents):
         """
         Retrieves the details of the specfied software components
@@ -117,26 +108,19 @@ class DynatraceApi:
 
     def getProcesses(self, processes):
         """
-        Retrieves the details of the specfied processes, with technology details and the relations to software components
-        :param processes: list of entity references (dic) (e.g. [{'id': ...}])
-        :return list of entities (dictionary)
-        """
-        return self.getAllEntitiesByIDs('/api/v2/entities?from='+timeframe, processes)
-
-    def getProcessesWithDetails(self, processes):
-        """
-        Retrieves the details of the specfied processes, with technology details and the relations to software components
-        :param processes: list of entity references (dic) (e.g. [{'id': ...}])
+        Retrieves the details of the specfied processes, with thechnolgy details and the relations to software components
+        :param list of entity references (dic) (e.g. [{'id': ...}])
         :return list of entities (dictionary)
         """
         return self.getAllEntitiesByIDs('/api/v2/entities?fields=toRelationships.isSoftwareComponentOfPgi,properties,fromRelationships.isProcessOf,fromRelationships.isInstanceOf&from='+timeframe, processes)
 
+    #added mz to fields returned SRS
     def getHosts(self):
         """
         Get all hosts with the relationships to processes (PGIs)
         :return list of entities (dictionary)
         """
-        return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf,properties.memoryTotal,properties.monitoringMode&entitySelector=type("HOST")&from='+timeframe)
+        return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf,managementZones,properties.memoryTotal,properties.monitoringMode&entitySelector=type("HOST")&from='+timeframe)
     
     
     @lru_cache(maxsize=None)
