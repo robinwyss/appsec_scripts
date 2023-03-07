@@ -9,6 +9,7 @@ import logging.config
 import time
 import re
 
+
 def getProperty(entity, propertyName):
     """
     Retrieves the value of a property from an entity if it exists, otherwise an empty string
@@ -54,7 +55,7 @@ def fieldsToPrint(host, process, securityProblem):
         process['displayName'],
         process['entityId'],
         getProperty(process, 'jvmClrVersion'),
-        securityProblem['packageName'],
+        securityProblem.get('packageName', ''),
         cve,
         securityProblem['title'],
         securityProblem['displayId'],

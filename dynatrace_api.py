@@ -20,6 +20,8 @@ class DynatraceApi:
         authHeader = {'Authorization' : 'Api-Token '+ self.apiToken}
         #added hard-coded cookies for managed tenant access comment out for SaaS env
         #cookies = {'JSESSIONID' : 'node012652menbarn5oo5zyvsr9hfh8188460.node0','b925d32c': 'SNCF7MNFZR46O6XNJDDR6TMDCY' }
+        cookies = None
+
         url = self.tenant + endpoint
         start_time=time.time()
         response = requests.get(url, headers=authHeader, verify=self.verifySSL, cookies=cookies)
