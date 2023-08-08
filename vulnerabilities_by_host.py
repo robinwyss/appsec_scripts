@@ -48,7 +48,17 @@ def getCmdPath(process):
         return ""
 #added host[managementzone] SRS
 def fieldsToPrint(host, process, securityProblem):
-    cve = ''.join(securityProblem['cveIds'])
+    cve = ''
+    if 'cveIds' in securityProblem:
+        cve = ''.join(securityProblem['cveIds'])
+    if 'baseRiskLevel' in securityProblem['riskAssessment']:
+        baseRiskLevel = securityProblem['riskAssessment']['baseRiskLevel']
+        baseRiskScore = securityProblem['riskAssessment']['baseRiskScore']
+    else:
+        # if there is no base risk score and level, it is the same as the risk level (DSS). This is the case for CLVs
+        baseRiskLevel = securityProblem['riskAssessment']['riskLevel']
+        baseRiskScore = securityProblem['riskAssessment']['riskScore']
+        
     return [host['displayName'],
         host['entityId'],
         host['managementZones'],
@@ -62,8 +72,9 @@ def fieldsToPrint(host, process, securityProblem):
         securityProblem['url'],
         securityProblem['riskAssessment']['riskLevel'],
         securityProblem['riskAssessment']['riskScore'],
-        securityProblem['riskAssessment']['baseRiskLevel'],
-        securityProblem['riskAssessment']['baseRiskScore'],
+        baseRiskLevel,
+        baseRiskScore,
+        securityProblem['vulnerabilityType'],
         getMetadata(process, 'EXE_PATH'),
         getMetadata(process, 'COMMAND_LINE_ARGS'), 
         getCmdPath(process)
@@ -102,7 +113,7 @@ with open('vulnerabilities_by_host.csv', 'w', newline='') as f:
     writer = csv.writer(f, delimiter=";", quoting=csv.QUOTE_ALL)
     # header
     #added host.mz SRS
-    header = ['host.name', 'host.id','host.mz', 'process.name', 'process.id', 'process.technologyVersion', 'library.packageName', 'cve','title','displayId','url', 'DSS-level', 'DSS-score', 'CVSS-level', 'CVSS-score', 'Exe Path', 'Commandline args', 'Command path']
+    header = ['host.name', 'host.id','host.mz', 'process.name', 'process.id', 'process.technologyVersion', 'library.packageName', 'cve','title','displayId','url', 'DSS-level', 'DSS-score', 'CVSS-level', 'CVSS-score', 'Type','Exe Path', 'Commandline args', 'Command path']
     writer.writerow(header)
 
     if hostIds:
