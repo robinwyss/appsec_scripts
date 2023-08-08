@@ -2,9 +2,10 @@
 
 ## Prerequisits
 - Python 3
-- [pandas](https://pypi.org/project/pandas/) and [requests](https://pypi.org/project/requests/) libraries
+- [pandas](https://pypi.org/project/pandas/) and [requests](https://pypi.org/project/requests/) libraries. On Windows, windows-curses is required as well
   - pip install pandas
   - pip install requests
+  - [Windows only] pip install windows-curses
 - Dynatrace API Token with Read Entities (`entities.read`) and Read Security Problems (`securityProblems.read`) scope (for *processes_reporting_libraries.py* `DataExport` and `events.read` are required as well) 
 
 ## Available scripts
