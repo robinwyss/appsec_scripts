@@ -48,7 +48,12 @@ def getCmdPath(process):
         return ""
 #added host[managementzone] SRS
 def fieldsToPrint(host, process, securityProblem):
-    cve = ''.join(securityProblem['cveIds'])
+
+    if 'cveIds' in securityProblem:
+        cve = ''.join(securityProblem['cveIds'])
+    else:
+        cve = ''
+
     return [host['displayName'],
         host['entityId'],
         host['managementZones'],
@@ -62,8 +67,8 @@ def fieldsToPrint(host, process, securityProblem):
         securityProblem['url'],
         securityProblem['riskAssessment']['riskLevel'],
         securityProblem['riskAssessment']['riskScore'],
-        securityProblem['riskAssessment']['baseRiskLevel'],
-        securityProblem['riskAssessment']['baseRiskScore'],
+        securityProblem.get('riskAssessment', {}).get('baseRiskLevel', ''),
+        securityProblem.get('riskAssessment', {}).get('baseRiskScore', ''),
         getMetadata(process, 'EXE_PATH'),
         getMetadata(process, 'COMMAND_LINE_ARGS'), 
         getCmdPath(process)
