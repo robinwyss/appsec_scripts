@@ -58,10 +58,17 @@ def fieldsToPrint(host, process, securityProblem):
         # if there is no base risk score and level, it is the same as the risk level (DSS). This is the case for CLVs
         baseRiskLevel = securityProblem['riskAssessment']['riskLevel']
         baseRiskScore = securityProblem['riskAssessment']['riskScore']
+
+    externalId = securityProblem['externalVulnerabilityId'];
+    if externalId.startswith('SNYK'):
+        extUrl = 'https://snyk.io/vuln/'+externalId
+    else:
+        extUrl = 'https://nvd.nist.gov/vuln/detail/' + externalId
+    
         
     return [host['displayName'],
         host['entityId'],
-        host['managementZones'],
+       # host['managementZones'],
         process['displayName'],
         process['entityId'],
         getProperty(process, 'jvmClrVersion'),
@@ -70,10 +77,15 @@ def fieldsToPrint(host, process, securityProblem):
         securityProblem['title'],
         securityProblem['displayId'],
         securityProblem['url'],
+        extUrl,
         securityProblem['riskAssessment']['riskLevel'],
         securityProblem['riskAssessment']['riskScore'],
         baseRiskLevel,
         baseRiskScore,
+        securityProblem['riskAssessment']['exposure'],
+        securityProblem['riskAssessment']['dataAssets'],
+        securityProblem['riskAssessment']['publicExploit'],
+        securityProblem['riskAssessment']['vulnerableFunctionUsage'],
         securityProblem['vulnerabilityType'],
         getMetadata(process, 'EXE_PATH'),
         getMetadata(process, 'COMMAND_LINE_ARGS'), 
@@ -113,7 +125,7 @@ with open('vulnerabilities_by_host.csv', 'w', newline='') as f:
     writer = csv.writer(f, delimiter=";", quoting=csv.QUOTE_ALL)
     # header
     #added host.mz SRS
-    header = ['host.name', 'host.id','host.mz', 'process.name', 'process.id', 'process.technologyVersion', 'library.packageName', 'cve','title','displayId','url', 'DSS-level', 'DSS-score', 'CVSS-level', 'CVSS-score', 'Type','Exe Path', 'Commandline args', 'Command path']
+    header = ['host.name', 'host.id', 'process.name', 'process.id', 'process.technologyVersion', 'library.packageName', 'cve','title','displayId','Dynatrace Link','External Link','DSS-level', 'DSS-score', 'CVSS-level', 'CVSS-score','Public Exposure','Reachable Data', 'Exploit','Vulnerable Function','Type','Exe Path', 'Commandline args', 'Command path']
     writer.writerow(header)
 
     if hostIds:
