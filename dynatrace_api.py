@@ -21,7 +21,6 @@ class DynatraceApi:
         #added hard-coded cookies for managed tenant access comment out for SaaS env
         #cookies = {'JSESSIONID' : 'node012652menbarn5oo5zyvsr9hfh8188460.node0','b925d32c': 'SNCF7MNFZR46O6XNJDDR6TMDCY' }
         cookies = None
-
         url = self.tenant + endpoint
         start_time=time.time()
         response = requests.get(url, headers=authHeader, verify=self.verifySSL, cookies=cookies)
@@ -128,6 +127,18 @@ class DynatraceApi:
         """
         return self.getAllEntitiesByIDs('/api/v2/entities?fields=toRelationships.isSoftwareComponentOfPgi,properties,fromRelationships.isProcessOf,fromRelationships.isInstanceOf&from='+timeframe, processes)
 
+       
+        #02/11/23 SRS- added back in getProcessessWithDetails for processes_reporting_libraries.py script
+     
+
+    def getProcessesWithDetails(self, processes):
+        """
+        Retrieves the details of the specfied processes, with technology details and the relations to software components
+        :param processes: list of entity references (dic) (e.g. [{'id': ...}])
+        :return list of entities (dictionary)
+        """
+        return self.getAllEntitiesByIDs('/api/v2/entities?fields=toRelationships.isSoftwareComponentOfPgi,properties,fromRelationships.isProcessOf,fromRelationships.isInstanceOf&from='+timeframe, processes)
+
     #added mz to fields returned SRS
     def getHosts(self):
         """
@@ -225,7 +236,3 @@ class DynatraceApi:
         """Yield successive n-sized chunks from lst."""
         for i in range(0, len(lst), n):
             yield lst[i:i + n]
-
-
-
-    
