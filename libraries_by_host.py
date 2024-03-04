@@ -33,7 +33,16 @@ def fieldsToPrint(host, process, softwareComponent):
         getProperty(softwareComponent,'packageName')]
 
 def fieldsToPrintForVulnerabilities(securityProblem):
-    cve = ''.join(securityProblem['cveIds'])
+    cve = ''
+    if 'cveIds' in securityProblem:
+        cve = ''.join(securityProblem['cveIds'])
+    if 'baseRiskLevel' in securityProblem['riskAssessment']:
+        baseRiskLevel = securityProblem['riskAssessment']['baseRiskLevel']
+        baseRiskScore = securityProblem['riskAssessment']['baseRiskScore']
+    else:
+        # if there is no base risk score and level, it is the same as the risk level (DSS). This is the case for CLVs
+        baseRiskLevel = securityProblem['riskAssessment']['riskLevel']
+        baseRiskScore = securityProblem['riskAssessment']['riskScore']
     return [
         cve,
         securityProblem['title'],
@@ -41,8 +50,8 @@ def fieldsToPrintForVulnerabilities(securityProblem):
         securityProblem['url'],
         securityProblem['riskAssessment']['riskLevel'],
         securityProblem['riskAssessment']['riskScore'],
-        securityProblem['riskAssessment']['baseRiskLevel'],
-        securityProblem['riskAssessment']['baseRiskScore']
+        baseRiskLevel,
+        baseRiskScore
         ]
 
 start_time=time.time()
