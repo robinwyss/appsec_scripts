@@ -33,7 +33,16 @@ def fieldsToPrint(host, process, softwareComponent):
         getProperty(softwareComponent,'packageName')]
 
 def fieldsToPrintForVulnerabilities(securityProblem):
-    cve = ''.join(securityProblem['cveIds'])
+    cve = ''
+    if 'cveIds' in securityProblem:
+        cve = ''.join(securityProblem['cveIds'])
+    if 'baseRiskLevel' in securityProblem['riskAssessment']:
+        baseRiskLevel = securityProblem['riskAssessment']['baseRiskLevel']
+        baseRiskScore = securityProblem['riskAssessment']['baseRiskScore']
+    else:
+        # if there is no base risk score and level, it is the same as the risk level (DSS). This is the case for CLVs
+        baseRiskLevel = securityProblem['riskAssessment']['riskLevel']
+        baseRiskScore = securityProblem['riskAssessment']['riskScore']
     return [
         cve,
         securityProblem['title'],
@@ -41,8 +50,8 @@ def fieldsToPrintForVulnerabilities(securityProblem):
         securityProblem['url'],
         securityProblem['riskAssessment']['riskLevel'],
         securityProblem['riskAssessment']['riskScore'],
-        securityProblem['riskAssessment']['baseRiskLevel'],
-        securityProblem['riskAssessment']['baseRiskScore']
+        baseRiskLevel,
+        baseRiskScore
         ]
 
 start_time=time.time()
@@ -93,7 +102,7 @@ with open('libraries_by_host.csv', 'w', newline='') as f:
     for host in hosts:
         if 'isProcessOf' in host['toRelationships']:
             processReferences = host['toRelationships']['isProcessOf']
-            processes = dynatraceApi.getProcessesWithDetails(processReferences)
+            processes = dynatraceApi.getProcesses(processReferences)
             for process in processes:
                 if 'processType' in process['properties'] and 'isSoftwareComponentOfPgi' in process['toRelationships']:
                     softwareComponentRefs = process['toRelationships']['isSoftwareComponentOfPgi']

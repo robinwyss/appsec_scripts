@@ -19,7 +19,8 @@ class DynatraceApi:
         """
         authHeader = {'Authorization' : 'Api-Token '+ self.apiToken}
         #added hard-coded cookies for managed tenant access comment out for SaaS env
-        cookies = {'JSESSIONID' : 'node01f3xapxugb6001gantga3g4z0q8174157.node0','b925d32c': 'RRJIKUEGPV7HQSQGP3LFBRU5QQ' }
+        #cookies = {'JSESSIONID' : 'node012652menbarn5oo5zyvsr9hfh8188460.node0','b925d32c': 'SNCF7MNFZR46O6XNJDDR6TMDCY' }
+        cookies = None
         url = self.tenant + endpoint
         start_time=time.time()
         response = requests.get(url, headers=authHeader, verify=self.verifySSL, cookies=cookies)
@@ -31,6 +32,18 @@ class DynatraceApi:
             raise RuntimeError(f'API request failed: {response.status_code} ({response.reason})', response.content)
         print('.', end="", flush=True) # print a dot for every call to show activity
         return response.json()
+
+    def getAttacks(self):
+        """
+        get a list of all attacks
+        """
+        attacks = []
+        response = self.queryApi('/api/v2/attacks?fields=%2BattackTarget%2C%2Brequest%2C%2Bentrypoint%2C%2Bvulnerability%2C%2BsecurityProblem%2C%2Battacker%2C%2BmanagementZones%2C%2BaffectedEntities&pageSize=500&from=now-1d')
+        attacks += response["attacks"]
+        while "nextPageKey" in response:
+            response = self.queryApi('/api/v2/attacks?nextPageKey=' + response["nextPageKey"])
+            attacks += response["attacks"]
+        return attacks
  
     def getSecurityProblems(self):
         """
@@ -144,7 +157,7 @@ class DynatraceApi:
         """
         ids = entityId.split(',')
         entityIds = ', '.join(f'"{i}"' for i in ids)
-        return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf&entitySelector=entityId('+entityIds+')&from='+timeframe)
+        return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf,managementZones,properties.memoryTotal,properties.monitoringMode&entitySelector=entityId('+entityIds+')&from='+timeframe)
 
     def getAllEntitiesByIDs(self, endpoint, entityRefs):
         """
@@ -156,8 +169,8 @@ class DynatraceApi:
         entities = []
         # split the list into chunks of 100 in order to avoid too large requests (URI too long)
         listOfEntityIds = self.splitIntoChunks(entityRefs, 100)
-        for entitieIds in listOfEntityIds:
-            ids = self.getIdsFromEntities(entitieIds)
+        for entityIds in listOfEntityIds:
+            ids = self.getIdsFromEntities(entityIds)
             entities += self.getAllEntities(endpoint + '&entitySelector=entityId('+ids+')')
         return entities
 
@@ -175,7 +188,27 @@ class DynatraceApi:
             entities += response["entities"]
         return entities
 
-    
+    @lru_cache(maxsize=None)
+    def getContainerGroupForPGI(self, pgiId):
+        """
+        Retrieves the container group for the PGI, if there is one, otherwise None.
+        param: pgiId endpoint: ID of the Process Group Instance for which the Container Group Instance should be retrieved
+        return: Container Group instance or None
+        """
+        containerGroups = self.getAllEntities('/api/v2/entities?fields=+properties&pageSize=500&entitySelector=type(CONTAINER_GROUP_INSTANCE),toRelationships.isMainPgiOfCgi(entityId('+pgiId+'))')
+        return containerGroups[0] if containerGroups else None
+
+    @lru_cache(maxsize=None)
+    def getClusterForCGI(self, cgiID):
+        """
+        Retrieves the cluster for a given Container Group Instance
+        param: pgiId endpoint: ID of the Process Group Instance for which the Container Group Instance should be retrieved
+        return: Container Group instance or None
+        """
+        cluster = self.getAllEntities(
+            '/api/v2/entities?entitySelector=type(KUBERNETES_CLUSTER),toRelationships.isCgiOfCluster(entityId(' + cgiID + '))')
+        return cluster[0] if cluster else None
+
     @lru_cache(maxsize=None)
     def getRestartEvents(self,processId):
         """
