@@ -19,6 +19,8 @@
   - Exports all  vulnerabilities grouped by host and process to a CSV
 - [Processes reporting libraries ](#processes_reporting_librariespy)
   - Generates a list of all processes that are reporting software components and exports to a CSV
+-  [attack_details](#attack_detailspy)
+  - Exports a list of all attacks with details about the impacted container
 
 ## Usage
 
@@ -135,6 +137,23 @@ Required token scope: Read entities (`entities.read`) / Access problem and event
 -e ENVIRONMENT, --env ENVIRONMENT   The Dynatrace Environment to use (e.g. https://xxxyyyyy.live.dynatrace.com)                    
 -t TOKEN, --token TOKEN             The Dynatrace API Token to use (e.g. dt0c01.XXX...)     
 -n, --name                          The name of the library to export, the name pattern is groupid:artifactid:version (for java) and it matches the begining of the name (startsWith).               
+```
+
+#### Examples
+Retrieve all processes using snakeyaml
+```bash
+python3 processes_reporting_libraries.py -e https://xxxyyyyy.live.dynatrace.com -t dt0c01.XXX... -n org.yaml:snakeyaml
+```
+
+### [attack_details.py](attack_details.py)
+Exports a list of all all attacks with details about the affected container
+
+Required token scope: Read entities (`entities.read`) / Read attacks (`attacks.read`)
+
+#### Arguments
+```
+-e ENVIRONMENT, --env ENVIRONMENT   The Dynatrace Environment to use (e.g. https://xxxyyyyy.live.dynatrace.com)                    
+-t TOKEN, --token TOKEN             The Dynatrace API Token to use (e.g. dt0c01.XXX...)                    
 ```
 
 #### Examples
