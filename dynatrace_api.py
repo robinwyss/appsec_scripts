@@ -146,7 +146,7 @@ class DynatraceApi:
         """
         ids = entityId.split(',')
         entityIds = ', '.join(f'"{i}"' for i in ids)
-        return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf&entitySelector=entityId('+entityIds+')&from='+timeframe)
+        return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf,managementZones,properties.memoryTotal,properties.monitoringMode&entitySelector=entityId('+entityIds+')&from='+timeframe)
 
     def getAllEntitiesByIDs(self, endpoint, entityRefs):
         """
