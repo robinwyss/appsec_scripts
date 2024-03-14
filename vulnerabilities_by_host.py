@@ -3,8 +3,8 @@ from curses import meta
 import sys
 from argparse import ArgumentParser
 import csv
+from datetime import datetime, timedelta
 from dynatrace_api import DynatraceApi
-import logging
 import logging.config
 import time
 import re
@@ -61,12 +61,15 @@ def fieldsToPrint(host, process, securityProblem):
         baseRiskLevel = securityProblem['riskAssessment']['riskLevel']
         baseRiskScore = securityProblem['riskAssessment']['riskScore']
 
-    externalId = securityProblem['externalVulnerabilityId'];
-    if externalId.startswith('SNYK'):
-        extUrl = 'https://snyk.io/vuln/'+externalId
+    # code level vulnerabilities don't have an external vulnerability id
+    if 'externalVulnerabilityId' in securityProblem:
+        externalId = securityProblem['externalVulnerabilityId']
+        if externalId.startswith('SNYK'):
+            extUrl = 'https://snyk.io/vuln/'+externalId
+        else:
+            extUrl = 'https://nvd.nist.gov/vuln/detail/' + externalId
     else:
-        extUrl = 'https://nvd.nist.gov/vuln/detail/' + externalId
-    
+        extUrl = ''
         
     return [host['displayName'],
         host['entityId'],
@@ -88,15 +91,22 @@ def fieldsToPrint(host, process, securityProblem):
         securityProblem['riskAssessment']['dataAssets'],
         securityProblem['riskAssessment']['publicExploit'],
         securityProblem['riskAssessment']['vulnerableFunctionUsage'],
+        securityProblem['firstSeenTimestamp'],
         securityProblem['vulnerabilityType'],
         getMetadata(process, 'EXE_PATH'),
         getMetadata(process, 'COMMAND_LINE_ARGS'), 
         getCmdPath(process)
         ]
 
+def isNewerThanSpecifiedTime(securityProblem, hours):
+    spTimestamp = int(securityProblem['firstSeenTimestamp'])
+    fromTimestamp = (datetime.now() - timedelta(hours=int(hours))).timestamp() * 1000
+    return spTimestamp > fromTimestamp
+
+
 start_time = time.time()
 
-# get the Dynatrace Environmemnt (URL) and the API Token and default parameters
+# get the Dynatrace Environment (URL) and the API Token and default parameters
 parser = ArgumentParser()
 parser.add_argument("-e", "--env", dest="environment", help="The Dynatrace Environment to query", required=True)
 parser.add_argument("-t", "--token", dest="token", help="The Dynatrace API Token to use", required=True)
@@ -104,16 +114,18 @@ parser.add_argument("--debug", dest="debug", help="Set log level to debbug", act
 parser.add_argument("-k", "--insecure", dest="insecure", help="Skip SSL certificate validation", action='store_true')
 # additional parameter
 parser.add_argument("-i", "--hostIds", dest="hostIds", help="Specify the host ids for which the data should be retrieved", required=False)
+parser.add_argument("-s", "--since", dest="since", help="Filters result by time, only shows the vulnerability detected since the specified number of hours", required=False)
 
 args = parser.parse_args()
 
 env = args.environment
 apiToken = args.token
 hostIds = args.hostIds
+since = args.since
 verifySSL = not args.insecure
 debug = args.debug
 
-#if debug:
+# if debug:
 logging.getLogger().setLevel(logging.DEBUG)
 
 logging.basicConfig(filename='output.log', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -126,8 +138,8 @@ dynatraceApi = DynatraceApi(env, apiToken, verifySSL)
 with open('vulnerabilities_by_host.csv', 'w', newline='') as f:
     writer = csv.writer(f, delimiter=";", quoting=csv.QUOTE_ALL)
     # header
-    #added host.mz SRS
-    header = ['host.name', 'host.id', 'process.name', 'process.id', 'process.technologyVersion', 'library.packageName', 'cve','title','displayId','Dynatrace Link','External Link','DSS-level', 'DSS-score', 'CVSS-level', 'CVSS-score','Public Exposure','Reachable Data', 'Exploit','Vulnerable Function','Type','Exe Path', 'Commandline args', 'Command path']
+    # added host.mz SRS
+    header = ['host.name', 'host.id', 'process.name', 'process.id', 'process.technologyVersion', 'library.packageName', 'cve','title','displayId','Dynatrace Link','External Link','DSS-level', 'DSS-score', 'CVSS-level', 'CVSS-score','Public Exposure','Reachable Data', 'Exploit','Vulnerable Function','First Seen', 'Type','Exe Path', 'Commandline args', 'Command path']
     writer.writerow(header)
 
     if hostIds:
@@ -142,8 +154,9 @@ with open('vulnerabilities_by_host.csv', 'w', newline='') as f:
                 process_group_id = process['fromRelationships']['isInstanceOf'][0]['id']
                 securityProblems = dynatraceApi.getSecurityProblemsForProcessGroup(process_group_id)
                 for securityProblem in securityProblems:
-                    fields = fieldsToPrint(host, process, securityProblem)
-                    writer.writerow(fields)
+                    if since and isNewerThanSpecifiedTime(securityProblem, since):
+                        fields = fieldsToPrint(host, process, securityProblem)
+                        writer.writerow(fields)
 
 end_time=time.time()
 print('')

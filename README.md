@@ -95,7 +95,8 @@ Required token scope: Read entities (`entities.read`) and Read security problems
 ```
 -e ENVIRONMENT, --env ENVIRONMENT   The Dynatrace Environment to use (e.g. https://xxxyyyyy.live.dynatrace.com)                    
 -t TOKEN, --token TOKEN             The Dynatrace API Token to use (e.g. dt0c01.XXX...)     
--i, --hostIds                       Optional parameter to specify the hostIds for which the information should be retrieved (if ommited all hosts will be included). Multiple IDs can be specified, sparated by ',' (no spaces)               
+-i, --hostIds                       Optional parameter to specify the hostIds for which the information should be retrieved (if ommited all hosts will be included). Multiple IDs can be specified, sparated by ',' (no spaces)
+-s, --since                         If specified, only the vulnerabilities that were first seen since the specified number of hours are shown (e.g. -s 24 will only return the vulnerabilities that were detected in the last 24h)               
 ```
 
 #### Examples
