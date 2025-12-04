@@ -1,10 +1,8 @@
-certifi==2023.7.22
-charset-normalizer==2.0.10
-idna==3.3
-numpy==1.22.1
-pandas==1.4.0
-python-dateutil==2.8.2
-pytz==2021.3
-requests==2.31.0
-six==1.16.0
-urllib3==1.26.18
+# Core dependencies for appsec_scripts
+# Compatible with Python 3.14+
+
+# HTTP library for Dynatrace API calls
+requests>=2.32.3,<3.0.0
+
+# Data manipulation and analysis
+pandas>=2.2.3,<3.0.0
