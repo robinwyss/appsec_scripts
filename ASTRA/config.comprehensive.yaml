@@ -1,0 +1,458 @@
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                                                                              ║
+# ║   ASTRA - Application Security Threat & Risk Assessment                     ║
+# ║   Comprehensive Configuration File                                           ║
+# ║                                                                              ║
+# ║   This file contains all available configuration options with detailed      ║
+# ║   explanations. Copy this file to 'config.yaml' and adjust for your needs.  ║
+# ║                                                                              ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+# ┌──────────────────────────────────────────────────────────────────────────────┐
+# │ DYNATRACE CONNECTION                                                         │
+# └──────────────────────────────────────────────────────────────────────────────┘
+dynatrace:
+  # Your Dynatrace environment URL (without trailing slash)
+  # Examples:
+  #   - SaaS: https://abc12345.live.dynatrace.com
+  #   - Managed: https://your-domain.com/e/environment-id
+  environment: "https://your-environment.live.dynatrace.com"
+  
+  # API Token with required permissions:
+  #   - Read security problems (securityProblems.read)
+  #   - Read entities (entities.read)
+  #   - Read vulnerabilities (vulnerabilities.read)
+  #
+  # SECURITY BEST PRACTICE: Use environment variable instead of hardcoding
+  # Option 1 (Recommended): Use environment variable
+  #   export DT_API_TOKEN="dt0c01.YOUR_TOKEN_HERE"
+  #   Then use: api_token: "${DT_API_TOKEN}"
+  # Option 2: Direct token (not recommended for production)
+  #   api_token: "dt0c01.YOUR_TOKEN_HERE"
+  api_token: "${DT_API_TOKEN}"
+  
+  # SSL certificate verification
+  # Set to false only for self-signed certificates in test environments
+  verify_ssl: true
+
+
+# ┌──────────────────────────────────────────────────────────────────────────────┐
+# │ ASSESSMENT CONFIGURATION                                                     │
+# └──────────────────────────────────────────────────────────────────────────────┘
+assessment:
+  # Timeframe for vulnerability data collection
+  # Determines the window for security problem analysis
+  # 
+  # Supported formats:
+  #   - now-7d    : Last 7 days
+  #   - now-30d   : Last 30 days (recommended for most assessments)
+  #   - now-90d   : Last quarter
+  #   - now-6M    : Last 6 months
+  #   - now-1y    : Last year
+  #
+  # Recommendation: 30-90 days for balanced view of active vulnerabilities
+  timeframe: "now-30d"
+
+
+# ┌──────────────────────────────────────────────────────────────────────────────┐
+# │ HRP v2.0 - HOLISTIC RISK POSTURE CONFIGURATION                              │
+# │                                                                              │
+# │ HRP v2.0 measures: "Potential Business Impact from Security Exposure"       │
+# │                                                                              │
+# │ Calculation Model (0-100 scale):                                            │
+# │   • Vulnerability Risk (60%): CVSS severity, exploitability, CVE presence   │
+# │   • Supply Chain Risk (20%): Percentage of vulnerable libraries            │
+# │   • Topology Risk (15%): Blast radius, connectivity, critical systems      │
+# │   • Aging Risk (5%): Time since first detection                            │
+# │                                                                              │
+# │ One-liner: "The potential operational and security impact if an attacker    │
+# │ successfully exploited identified vulnerabilities, weighted by               │
+# │ exploitability, attack surface breadth, system criticality, and exposure    │
+# │ duration."                                                                   │
+# └──────────────────────────────────────────────────────────────────────────────┘
+hrp_v2:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Component Weights (MUST sum to 1.0)
+  # ─────────────────────────────────────────────────────────────────────────────
+  vulnerability_weight: 0.60    # Vulnerability severity & exploitability
+  supply_chain_weight: 0.20     # Vulnerable libraries ratio (HIGH IMPORTANCE)
+  topology_weight: 0.15         # Blast radius, connectivity & critical path
+  aging_weight: 0.05            # Remediation velocity & exposure duration
+  
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Vulnerability Scoring Parameters
+  # ─────────────────────────────────────────────────────────────────────────────
+  
+  # Dampening function to prevent score saturation with many vulnerabilities
+  # Options:
+  #   - "sqrt"   : Square root dampening (aggressive, ~70% reduction)
+  #   - "log10"  : Logarithmic dampening (very aggressive, ~90% reduction)
+  #   - "power"  : Power-law dampening (configurable via exponent)
+  #
+  # Recommendation: "power" with exponent 0.65-0.75 for balanced scoring
+  dampening_function: "power"
+  
+  # Dampening exponent (only used when dampening_function = "power")
+  # Lower = more dampening (fewer high scores)
+  # Higher = less dampening (more high scores)
+  #
+  # Typical values:
+  #   - 0.5  : Same as "sqrt" (aggressive dampening)
+  #   - 0.65 : Balanced (recommended starting point)
+  #   - 0.75 : Moderate dampening
+  #   - 0.85 : Light dampening
+  #   - 1.0  : No dampening (linear scaling)
+  dampening_exponent: 0.65
+  
+  # Maximum theoretical score for normalization
+  # Higher values create more headroom for extreme vulnerability counts
+  # Prevents score saturation in highly vulnerable environments
+  #
+  # Typical values:
+  #   - 300  : Conservative (caps high-vuln environments lower)
+  #   - 500  : Balanced (recommended)
+  #   - 1000 : Permissive (allows very high scores)
+  max_theoretical_score: 500
+  
+  # Exploitability multiplier
+  # Boost for vulnerabilities with confirmed public exploits
+  # Applied when exploit_available = true in Dynatrace data
+  #
+  # Typical values: 2.0 - 4.0
+  # Recommendation: 3.0 for balanced risk assessment
+  exploitability_multiplier: 3.0
+  
+  # CVE multiplier
+  # Boost for vulnerabilities with official CVE identifiers
+  # CVE IDs indicate widely-recognized, documented vulnerabilities
+  #
+  # Typical values: 1.5 - 3.0
+  # Recommendation: 2.2 for balanced risk assessment
+  cve_multiplier: 2.2
+  
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Topology & Supply Chain Parameters
+  # ─────────────────────────────────────────────────────────────────────────────
+  
+  # Blast radius decay factor
+  # Controls how entity count affects topology risk
+  # Higher decay = diminishing returns for large entity counts
+  #
+  # Formula: 1 - exp(-decay * entity_count)
+  # Typical values: 0.01 - 0.1
+  # Recommendation: 0.05
+  blast_radius_decay: 0.05
+  
+  # Supply chain power-law exponent
+  # Controls how vulnerable library ratio affects risk
+  # Lower = more aggressive penalty for vulnerable libraries
+  #
+  # Formula: (vulnerable_libs / total_libs) ^ exponent
+  # Typical values: 0.5 - 1.0
+  # Recommendation: 0.7
+  supply_chain_power: 0.7
+  
+  # Enable graph-based connectivity risk analysis
+  # Analyzes relationships between entities to assess cascading risk
+  # May increase computation time in large environments
+  enable_connectivity_analysis: true
+  
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Aging Parameters
+  # ─────────────────────────────────────────────────────────────────────────────
+  
+  # Aging scale factor
+  # Controls penalty for long-standing vulnerabilities
+  # Higher = more aggressive aging penalties
+  #
+  # Typical values: 0.5 - 1.0
+  # Recommendation: 0.7
+  aging_scale_factor: 0.7
+
+
+# ┌──────────────────────────────────────────────────────────────────────────────┐
+# │ ENTITY FILTERS                                                               │
+# │                                                                              │
+# │ Define which entities to include in the assessment. You can filter by       │
+# │ entity type, specific IDs, management zones, or tags.                       │
+# └──────────────────────────────────────────────────────────────────────────────┘
+filters:
+  # Entity type to analyze
+  # Supported values:
+  #   - "process_group"     : Application process groups (recommended)
+  #   - "host"              : Hosts/servers
+  #   - "application"       : Applications
+  #   - "management_zone"   : Management zones
+  type: "process_group"
+  
+  # Specific entity IDs to include
+  # Leave empty to include ALL entities of the specified type
+  #
+  # Example - Analyze specific process groups:
+  #   ids: 
+  #     - "PROCESS_GROUP-1234567890ABCDEF"
+  #     - "PROCESS_GROUP-FEDCBA0987654321"
+  #
+  # Example - Analyze all entities:
+  #   ids: []
+  ids: []
+  
+  # Filter by Management Zone names
+  # Leave empty to include entities from ALL management zones
+  #
+  # Example - Only production environments:
+  #   management_zones:
+  #     - "Production"
+  #     - "Production-EU"
+  #     - "Production-US"
+  #
+  # Example - All zones:
+  #   management_zones: []
+  management_zones: []
+  
+  # Filter by Dynatrace tags
+  # Leave empty to include ALL tagged entities
+  #
+  # Example - Only customer-facing applications:
+  #   tags:
+  #     - "Environment:Production"
+  #     - "App:CustomerFacing"
+  #     - "Criticality:High"
+  #
+  # Example - No tag filtering:
+  #   tags: []
+  tags: []
+
+
+# ┌──────────────────────────────────────────────────────────────────────────────┐
+# │ RISK SCORING (LEGACY CWRS MODEL)                                            │
+# │                                                                              │
+# │ NOTE: This is the legacy scoring model. HRP v2.0 (above) is now the        │
+# │ primary risk metric. CWRS is maintained for backward compatibility.         │
+# │                                                                              │
+# │ CWRS = Comprehensive Weighted Risk Score                                    │
+# │ Weights MUST sum to 100                                                     │
+# └──────────────────────────────────────────────────────────────────────────────┘
+scoring:
+  # Vulnerability Severity Score (0-25 points)
+  # Based on Davis Security Score ranges from Dynatrace
+  vulnerability_weight: 25
+  
+  # Exploitability Factor (0-40 points)
+  # Public exploits, vulnerable function usage, network exposure
+  exploitability_weight: 40
+  
+  # Attack Complexity & Exposure (0-20 points)
+  # Library vulnerability ratio, network-exposed processes
+  exposure_weight: 20
+  
+  # System Criticality & Usage (0-15 points)
+  # Network listeners, external services, host count
+  criticality_weight: 15
+  
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Alternative Weight Profiles:
+  # ─────────────────────────────────────────────────────────────────────────────
+  #
+  # Balanced Conservative (current):
+  #   vulnerability_weight: 25, exploitability_weight: 40
+  #   exposure_weight: 20, criticality_weight: 15
+  #
+  # Exploit-Focused (emphasizes active threats):
+  #   vulnerability_weight: 30, exploitability_weight: 35
+  #   exposure_weight: 20, criticality_weight: 15
+  #
+  # Severity-Focused (emphasizes CVSS scores):
+  #   vulnerability_weight: 40, exploitability_weight: 30
+  #   exposure_weight: 20, criticality_weight: 10
+
+
+# ┌──────────────────────────────────────────────────────────────────────────────┐
+# │ OUTPUT CONFIGURATION                                                         │
+# └──────────────────────────────────────────────────────────────────────────────┘
+output:
+  # Directory for JSON report output
+  # Reports contain detailed vulnerability data and scoring information
+  json_path: "./reports"
+  
+  # Directory for PDF report output (if reportlab is installed)
+  # PDF reports provide executive summaries and visualizations
+  pdf_path: "./reports"
+  
+  # Filename prefix for generated reports
+  # Actual filename format: <prefix>_YYYYMMDD_HHMMSS.json|pdf
+  #
+  # Examples:
+  #   - filename_prefix: "astra_report"
+  #     → astra_report_20260123_143022.json
+  #   - filename_prefix: "prod_assessment"
+  #     → prod_assessment_20260123_143022.json
+  filename_prefix: "astra_report"
+
+
+# ┌──────────────────────────────────────────────────────────────────────────────┐
+# │ VULNERABILITY EXCLUSIONS                                                     │
+# │                                                                              │
+# │ Simulate "what-if" scenarios by excluding specific vulnerabilities.         │
+# │ Useful for:                                                                  │
+# │   • Modeling risk score changes after planned remediation                   │
+# │   • Prioritizing remediation efforts                                         │
+# │   • Demonstrating ROI of security improvements                              │
+# └──────────────────────────────────────────────────────────────────────────────┘
+exclusions:
+  pgis:
+    # ─────────────────────────────────────────────────────────────────────────────
+    # How to Find Vulnerability IDs:
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 1. Generate a report and open: reports/astra_report_YYYYMMDD_HHMMSS.json
+    # 2. Search for your entity in the "remediation_priorities" section
+    # 3. Use the helper script: python show_vuln_ids.py <ENTITY_ID>
+    # 4. Use any of these ID formats:
+    #      • cveIds (e.g., CVE-2023-44487) ← RECOMMENDED when available
+    #      • externalVulnerabilityId (e.g., SNYK-JAVA-xxx)
+    #      • displayId (e.g., S-309)
+    #      • securityProblemId (long numeric ID)
+    
+    # ─────────────────────────────────────────────────────────────────────────────
+    # Exclusion Types:
+    # ─────────────────────────────────────────────────────────────────────────────
+    
+    # Type 1: By Process Group Instance ID (most specific)
+    # Targets one specific instance and its parent process group
+    # Example:
+    # - pgi_id: "PROCESS_GROUP_INSTANCE-E45DB9E6F534EEF6"
+    #   vulnerability_ids:
+    #     - "CVE-2023-44487"  # HTTP/2 Rapid Reset Attack
+    #     - "CVE-2024-38286"  # Tomcat DoS vulnerability
+    
+    # Type 2: By Process Group ID (broader)
+    # Targets all instances under a specific process group
+    # Example:
+    # - pg_id: "PROCESS_GROUP-7B4350D7F3D29FC6"
+    #   vulnerability_ids:
+    #     - "CVE-2023-44487"
+    #     - "SNYK-JAVA-COMFASTERXMLJACKSONCORE-7569538"
+    
+    # Type 3: By Process Group Name (most flexible)
+    # Targets all process groups whose name contains the specified string
+    # Case-insensitive substring match
+    # Example:
+    # - pg_name_contains: "SpringBoot"
+    #   vulnerability_ids:
+    #     - "CVE-2021-44228"  # Log4Shell
+    #     - "CVE-2024-38816"  # Spring Framework RCE
+    
+    # ─────────────────────────────────────────────────────────────────────────────
+    # Quick Command to Find Top Vulnerabilities:
+    # ─────────────────────────────────────────────────────────────────────────────
+    # cat reports/astra_report_*.json | jq -r '
+    #   .remediation_priorities[] 
+    #   | select(.affected_pgis[]? | select(.name == "TARGET_NAME")) 
+    #   | {cve: (.cveIds[0] // .externalVulnerabilityId // .displayId), 
+    #      title: .title, severity: .severity, davis_score: .davis_score} 
+    #   | select(.cve != null)' 
+    # | jq -s 'unique_by(.cve) | sort_by(-.davis_score) | .[0:10]'
+    
+    # ─────────────────────────────────────────────────────────────────────────────
+    # Working Example (commented out - customize for your environment):
+    # ─────────────────────────────────────────────────────────────────────────────
+    # - pg_name_contains: "easytravel"
+    #   vulnerability_ids:
+    #     - "CVE-2021-44228"  # Log4j Log4Shell
+    #     - "CVE-2023-44487"  # HTTP/2 Rapid Reset
+    #     - "CVE-2024-38816"  # Spring RCE
+
+
+# ┌──────────────────────────────────────────────────────────────────────────────┐
+# │ ADVANCED OPTIONS                                                             │
+# └──────────────────────────────────────────────────────────────────────────────┘
+advanced:
+  # Maximum number of concurrent API requests
+  # Higher values = faster execution but more resource intensive
+  #
+  # Recommendations:
+  #   - Small environments (<100 entities): 10
+  #   - Medium environments (100-1000 entities): 15-20
+  #   - Large environments (>1000 entities): 25-30
+  #   - Rate-limited APIs: 5-10
+  #
+  # Note: Dynatrace APIs have rate limits. Exceeding them may cause
+  # temporary throttling or request failures.
+  max_workers: 15
+  
+  # Maximum number of entities in detailed PDF report
+  # Prevents PDF size issues in large environments
+  # Entities are selected by highest risk score
+  #
+  # Recommendations:
+  #   - Executive summary: 20-30
+  #   - Detailed report: 50-100
+  #   - Comprehensive audit: 100+
+  max_entities_in_pdf: 50
+  
+  # Enable detailed vulnerability logging
+  # Logs each vulnerability processing step to astra_report.log
+  # Useful for debugging but creates large log files
+  verbose_logging: false
+  
+  # Include entities with zero vulnerabilities in reports
+  # Useful for complete inventory but increases report size
+  include_clean_entities: false
+
+
+# ┌──────────────────────────────────────────────────────────────────────────────┐
+# │ USAGE EXAMPLES                                                               │
+# └──────────────────────────────────────────────────────────────────────────────┘
+#
+# Basic usage:
+#   python astra_report.py --config config.yaml
+#
+# Generate report for specific process group:
+#   python astra_report.py --config config.yaml --pg-id PROCESS_GROUP-123456
+#
+# What-if analysis (exclude vulnerabilities to see score impact):
+#   1. Configure exclusions section above
+#   2. python astra_report.py --config config.yaml
+#   3. Compare HRP v2.0 scores before/after exclusions
+#
+# JSON output only (no PDF):
+#   python astra_report.py --config config.yaml --no-pdf
+#
+# Verbose logging:
+#   python astra_report.py --config config.yaml --verbose
+
+
+# ┌──────────────────────────────────────────────────────────────────────────────┐
+# │ TROUBLESHOOTING                                                              │
+# └──────────────────────────────────────────────────────────────────────────────┘
+#
+# Issue: "API token invalid"
+#   → Check token permissions: securityProblems.read, entities.read
+#   → Verify token format: dt0c01.XXX...
+#   → Ensure DT_API_TOKEN environment variable is set
+#
+# Issue: "No vulnerabilities found"
+#   → Check timeframe is appropriate (try now-90d)
+#   → Verify entity filters aren't too restrictive
+#   → Confirm security monitoring is enabled in Dynatrace
+#
+# Issue: "Scores too high/low"
+#   → Adjust HRP v2.0 dampening_exponent (0.5-0.85)
+#   → Modify component weights (vulnerability_weight, etc.)
+#   → Review max_theoretical_score (300-1000)
+#
+# Issue: "PDF generation fails"
+#   → Install reportlab: pip install reportlab
+#   → Reduce max_entities_in_pdf if memory issues occur
+#
+# Issue: "Slow execution"
+#   → Increase max_workers (15-30)
+#   → Reduce timeframe (now-30d instead of now-90d)
+#   → Disable connectivity_analysis if not needed
+#
+# For more help: Check astra_report.log or GitHub issues
+
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                         END OF CONFIGURATION FILE                            ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
