@@ -1,0 +1,78 @@
+name: Build ASTRA Releases
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            artifact: astra-linux-x64
+          - os: macos-latest
+            platform: macos-arm64
+            artifact: astra-macos-arm64
+          - os: macos-13  # Intel runner
+            platform: macos-intel
+            artifact: astra-macos-x64
+          - os: windows-latest
+            platform: windows
+            artifact: astra-windows.exe
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+      
+      - name: Build with PyInstaller (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd ASTRA
+          pyinstaller --onefile \
+            --name ${{ matrix.artifact }} \
+            --add-data "config.example.yaml:." \
+            --hidden-import=dynatrace_api \
+            --collect-all reportlab \
+            astra_report.py
+      
+      - name: Build with PyInstaller (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd ASTRA
+          pyinstaller --onefile `
+            --name astra-windows `
+            --add-data "config.example.yaml;." `
+            --hidden-import=dynatrace_api `
+            --collect-all reportlab `
+            astra_report.py
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            ASTRA/dist/${{ matrix.artifact }}*
+            ASTRA/config.example.yaml
+      
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ASTRA/dist/${{ matrix.artifact }}*
+            ASTRA/config.example.yaml

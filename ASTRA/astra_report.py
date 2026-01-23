@@ -55,6 +55,8 @@ class AstraConfig:
         try:
             with open(self.config_path, 'r') as f:
                 config = yaml.safe_load(f)
+            # Expand environment variables in config values
+            config = self._expand_env_vars(config)
             logger.info(f"Configuration loaded from {self.config_path}")
             return config
         except FileNotFoundError:
@@ -63,6 +65,28 @@ class AstraConfig:
         except yaml.YAMLError as e:
             logger.error(f"Error parsing YAML configuration: {e}")
             sys.exit(1)
+    
+    def _expand_env_vars(self, config: Any) -> Any:
+        """Recursively expand environment variables in config values."""
+        if isinstance(config, dict):
+            return {k: self._expand_env_vars(v) for k, v in config.items()}
+        elif isinstance(config, list):
+            return [self._expand_env_vars(item) for item in config]
+        elif isinstance(config, str):
+            # Expand ${VAR_NAME} or $VAR_NAME patterns
+            import re
+            def replacer(match):
+                var_name = match.group(1) or match.group(2)
+                value = os.environ.get(var_name)
+                if value is None:
+                    logger.error(f"Environment variable '{var_name}' is not set. "
+                               f"Please set it: export {var_name}='your-value'")
+                    sys.exit(1)
+                return value
+            # Match ${VAR} or $VAR patterns
+            return re.sub(r'\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)', replacer, config)
+        else:
+            return config
     
     def _validate_config(self):
         """Validate required configuration fields."""
