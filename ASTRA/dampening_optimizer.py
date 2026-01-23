@@ -124,36 +124,20 @@ class DampeningOptimizer:
             test_data = deepcopy(self.report_data)
             
             if exclude_vuln_ids:
-                # Filter vulnerabilities from entities
-                for entity in test_data.get('entities', []):
-                    if 'vulnerabilities' in entity:
-                        entity['vulnerabilities'] = [
-                            v for v in entity['vulnerabilities']
-                            if (v.get('securityProblemId') not in exclude_vuln_ids and
-                                v.get('vulnerability_id') not in exclude_vuln_ids)
-                        ]
-                        entity['vulnerability_count'] = len(entity['vulnerabilities'])
+                # Filter vulnerabilities from security_problems
+                if 'security_problems' in test_data:
+                    test_data['security_problems'] = [
+                        v for v in test_data['security_problems']
+                        if (v.get('securityProblemId') not in exclude_vuln_ids and
+                            v.get('vulnerability_id') not in exclude_vuln_ids)
+                    ]
                 
                 # Update summary
-                filtered_vuln_count = sum(
-                    e.get('vulnerability_count', 0) 
-                    for e in test_data.get('entities', [])
-                )
-                test_data['summary']['total_vulnerabilities'] = filtered_vuln_count
+                test_data['summary']['total_vulnerabilities'] = len(test_data.get('security_problems', []))
             
-            # Recalculate risk for first entity (representative)
-            entities = test_data.get('entities', [])
-            if not entities:
-                return 0.0, {}
-            
-            entity = entities[0]
-            
-            # Calculate HRP v2 risk
-            result = self.calculator._calculate_hrp_v2_risk(
-                entity.get('vulnerabilities', []),
-                entity,
-                test_data
-            )
+            # Calculate HRP v2 risk with the test data
+            # _calculate_hrp_v2_risk expects data with 'security_problems' key
+            result = self.calculator._calculate_hrp_v2_risk(test_data)
             
             return result.get('score', 0), result.get('components', {})
             
