@@ -1,5 +1,7 @@
 # ASTRA specific ignores
 config.yaml
+config_backup*.yaml
+*backup*.yaml
 *.log
 reports/
 archives/

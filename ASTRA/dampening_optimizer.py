@@ -316,7 +316,8 @@ class DampeningOptimizer:
     def update_config(self, 
                      new_exp: float, 
                      new_max: int,
-                     optimization_summary: str) -> None:
+                     optimization_summary: str,
+                     verbose: bool = True) -> None:
         """
         Update config with optimized parameters.
         
@@ -326,6 +327,7 @@ class DampeningOptimizer:
             new_exp: New dampening exponent
             new_max: New max theoretical score
             optimization_summary: Summary text to add as comment
+            verbose: Whether to show warnings (default: True)
         """
         try:
             from ruamel.yaml import YAML
@@ -349,13 +351,15 @@ class DampeningOptimizer:
             with open(config_path, 'w') as f:
                 yaml.dump(config, f)
             
-            logger.info(f"Config updated: exponent={new_exp}, max_score={new_max}")
+            if verbose:
+                logger.info(f"Config updated: exponent={new_exp}, max_score={new_max}")
             
         except ImportError:
-            logger.warning("ruamel.yaml not available, using PyYAML (may lose formatting)")
-            self._update_config_pyyaml(new_exp, new_max)
+            if verbose:
+                logger.warning("ruamel.yaml not available, using PyYAML (may lose formatting)")
+            self._update_config_pyyaml(new_exp, new_max, verbose)
     
-    def _update_config_pyyaml(self, new_exp: float, new_max: int) -> None:
+    def _update_config_pyyaml(self, new_exp: float, new_max: int, verbose: bool = True) -> None:
         """Fallback config update using PyYAML."""
         import yaml
         
@@ -373,7 +377,8 @@ class DampeningOptimizer:
         with open(config_path, 'w') as f:
             yaml.dump(config, f, default_flow_style=False)
         
-        logger.info(f"Config updated (PyYAML): exponent={new_exp}, max_score={new_max}")
+        if verbose:
+            logger.info(f"Config updated (PyYAML): exponent={new_exp}, max_score={new_max}")
     
     def generate_report(self, optimization_result: Dict[str, Any]) -> str:
         """

@@ -1426,29 +1426,42 @@ def run_dampening_optimization(config: AstraConfig, report_json_path: str) -> No
     # Generate and display report
     logger.info("")
     report = optimizer.generate_report(result)
-    print("\n" + report)
     
-    # Ask user for confirmation
-    print("\nApply these parameters? (yes/no): ", end='')
-    response = input().strip().lower()
+    # Check verbose logging setting
+    verbose = config.get('advanced.verbose_logging', False)
+    
+    if verbose:
+        # Show full report and prompt for confirmation
+        print("\n" + report)
+        print("\nApply these parameters? (yes/no): ", end='')
+        response = input().strip().lower()
+    else:
+        # Auto-apply in non-verbose mode
+        response = 'yes'
+        logger.info("Auto-applying optimized parameters (verbose_logging=false)")
     
     if response in ['yes', 'y']:
         # Backup current config
         backup_file = optimizer.backup_config("before-optimization")
-        logger.info(f"Config backed up to: {backup_file}")
+        if verbose:
+            logger.info(f"Config backed up to: {backup_file}")
         
         # Update config
         optimizer.update_config(
             result['exponent'],
             result['max_score'],
-            f"Optimized on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            f"Optimized on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            verbose=verbose
         )
         
-        print("\n✓ Configuration updated successfully!")
-        print(f"  • Dampening exponent: {result['exponent']}")
-        print(f"  • Max theoretical score: {result['max_score']}")
-        print(f"\nRe-run assessment to see the effect:")
-        print(f"  python astra_report.py -c {config.config_path} --phase-1")
+        if verbose:
+            print("\n✓ Configuration updated successfully!")
+            print(f"  • Dampening exponent: {result['exponent']}")
+            print(f"  • Max theoretical score: {result['max_score']}")
+            print(f"\nRe-run assessment to see the effect:")
+            print(f"  python astra_report.py -c {config.config_path}")
+        else:
+            logger.info(f"✓ Dampening parameters optimized: exponent={result['exponent']}, max_score={result['max_score']}")
     else:
         print("\nOptimization cancelled. No changes made.")
     
