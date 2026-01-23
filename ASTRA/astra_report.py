@@ -505,666 +505,14 @@ class RiskCalculator:
         }
         
     def calculate_overall_risk(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Calculate overall application risk score based on selected model."""
-        logger.info(f"Calculating overall risk score using {self.risk_model} model...")
-        
-        if self.risk_model == 'REI':
-            return self._calculate_rei_risk(data)
-        elif self.risk_model == 'HRP' or self.risk_model == 'HRP2':
-            return self._calculate_hrp_risk(data)
-        else:
-            return self._calculate_cwrs_risk(data)
+        """Calculate overall application risk score using HRP v2.0 model."""
+        logger.info("Calculating overall risk score using HRP2 model...")
+        return self._calculate_hrp_v2_risk(data)
     
-    def _calculate_cwrs_risk(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Calculate CWRS (Composite Weighted Risk Score) - 0-100% scale."""
-        vulnerabilities = data['security_problems']
-        
-        # Calculate component scores
-        vuln_score = self._calculate_vulnerability_severity_score(vulnerabilities)
-        exploit_score = self._calculate_exploitability_score(vulnerabilities)
-        exposure_score = self._calculate_exposure_score(data)
-        criticality_score = self._calculate_criticality_score(data)
-        
-        # Apply weights (already in percentage form)
-        total_score = vuln_score + exploit_score + exposure_score + criticality_score
-        
-        risk_rating = self._get_risk_rating_cwrs(total_score)
-        
-        return {
-            'score': round(total_score, 2),
-            'rating': risk_rating,
-            'model': 'CWRS',
-            'components': {
-                'vulnerability_severity': round(vuln_score, 2),
-                'exploitability': round(exploit_score, 2),
-                'exposure': round(exposure_score, 2),
-                'criticality': round(criticality_score, 2)
-            }
-        }
+    # ========== Deprecated Risk Models Removed ==========
+    # CWRS, REI, and HRP v1 have been deprecated in favor of HRP v2.0
     
-    def calculate_remediation_priorities(self, data: Dict[str, Any], current_overall_risk: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Calculate top 10 vulnerabilities by remediation impact.
-        
-        Returns list of vulnerabilities sorted by impact (score improvement if remediated).
-        Uses actual recalculation for accurate impact assessment.
-        """
-        import copy
-        vulnerabilities = data['security_problems']
-        priorities = []
-        current_score = current_overall_risk['score']
-        
-        logger.info(f"Calculating remediation impact for {len(vulnerabilities)} vulnerabilities...")
-        
-        for idx, vuln in enumerate(vulnerabilities):
-            # Create deep copy of data without this vulnerability
-            temp_data = copy.deepcopy(data)
-            temp_data['security_problems'] = [
-                v for v in temp_data['security_problems'] 
-                if v.get('securityProblemId') != vuln.get('securityProblemId')
-            ]
-            
-            # Recalculate score without this vulnerability
-            try:
-                temp_risk = self.calculate_overall_risk(temp_data)
-                temp_score = temp_risk['score']
-                
-                # Calculate impact (how much score improves)
-                impact = current_score - temp_score
-            except Exception as e:
-                logger.warning(f"Failed to calculate impact for vulnerability {vuln.get('securityProblemId')}: {e}")
-                impact = 0
-            
-            # Get affected PGIs for display
-            affected_pgis = self._get_affected_pgis(vuln, data)
-            
-            risk_assessment = vuln.get('riskAssessment', {})
-            if not isinstance(risk_assessment, dict):
-                risk_assessment = {}
-            
-            davis_score = risk_assessment.get('riskScore', risk_assessment.get('baseRiskScore', 0))
-            
-            priorities.append({
-                'vulnerability_id': vuln.get('securityProblemId'),
-                'title': vuln.get('title', 'Unknown'),
-                'cveIds': vuln.get('cveIds', []),  # Array of CVE IDs
-                'externalVulnerabilityId': vuln.get('externalVulnerabilityId'),
-                'displayId': vuln.get('displayId'),
-                'securityProblemId': vuln.get('securityProblemId'),
-                'severity': risk_assessment.get('riskLevel', 'UNKNOWN'),
-                'davis_score': davis_score,
-                'impact': round(impact, 3),  # Use 3 decimal places for better precision
-                'affected_pgis': affected_pgis,
-                'affected_pgi_count': len(affected_pgis)
-            })
-            
-            # Log progress every 20 vulnerabilities
-            if (idx + 1) % 20 == 0:
-                logger.info(f"  Processed {idx + 1}/{len(vulnerabilities)} vulnerabilities...")
-        
-        # Sort by impact (descending) and return top 10
-        priorities.sort(key=lambda x: x['impact'], reverse=True)
-        return priorities[:10]
-    
-    def _get_affected_pgis(self, vuln: Dict[str, Any], data: Dict[str, Any]) -> List[Dict[str, str]]:
-        """Extract affected PGIs from a vulnerability."""
-        affected_pgis = []
-        related_entities = vuln.get('relatedEntities', {})
-        
-        for entity_type in ['services', 'hosts', 'kubernetesWorkloads', 'kubernetesClusters']:
-            entities_list = related_entities.get(entity_type, [])
-            for related_entity in entities_list:
-                affected = related_entity.get('affectedEntities', [])
-                for entity_id in affected:
-                    if 'PROCESS_GROUP_INSTANCE' in entity_id:
-                        # Find entity name
-                        entity_name = None
-                        for pg in data.get('process_groups', []):
-                            if pg.get('entityId') == entity_id:
-                                entity_name = pg.get('displayName', entity_id)
-                                break
-                        affected_pgis.append({
-                            'id': entity_id,
-                            'name': entity_name or entity_id
-                        })
-        
-        return affected_pgis
-    
-    def calculate_entity_risk(self, entity: Dict[str, Any], vulnerabilities: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Calculate risk score for a specific entity based on selected model."""
-        entity_id = entity.get('entityId')
-        entity_name = entity.get('displayName', entity_id)
-        
-        # Filter vulnerabilities affecting this entity
-        # Use relatedEntities to match process group instances
-        entity_vulns = []
-        for v in vulnerabilities:
-            # Check relatedEntities for this PGI
-            related_entities = v.get('relatedEntities', {})
-            
-            # Check all entity types in relatedEntities
-            for entity_type in ['services', 'hosts', 'kubernetesWorkloads', 'kubernetesClusters']:
-                entities_list = related_entities.get(entity_type, [])
-                for related_entity in entities_list:
-                    affected = related_entity.get('affectedEntities', [])
-                    if entity_id in affected:
-                        entity_vulns.append(v)
-                        break
-                if v in entity_vulns:
-                    break
-        
-        
-        if not entity_vulns:
-            return {
-                'entity_id': entity_id,
-                'entity_name': entity_name,
-                'risk_score': 0,
-                'risk_rating': 'NONE',
-                'vulnerability_count': 0
-            }
-        
-        if self.risk_model == 'REI':
-            return self._calculate_entity_risk_rei(entity, entity_vulns)
-        elif self.risk_model == 'HRP' or self.risk_model == 'HRP2':
-            return self._calculate_entity_risk_hrp(entity, entity_vulns)
-        else:
-            return self._calculate_entity_risk_cwrs(entity, entity_vulns)
-    
-    def _calculate_entity_risk_cwrs(self, entity: Dict[str, Any], entity_vulns: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Calculate CWRS risk for a specific entity."""
-        entity_id = entity.get('entityId')
-        entity_name = entity.get('displayName', entity_id)
-        
-        # Calculate scores
-        vuln_score = self._calculate_vulnerability_severity_score(entity_vulns)
-        exploit_score = self._calculate_exploitability_score(entity_vulns)
-        exposure_score = self._calculate_entity_exposure_score(entity)
-        criticality_score = self._calculate_entity_criticality_score(entity)
-        
-        total_score = vuln_score + exploit_score + exposure_score + criticality_score
-        
-        return {
-            'entity_id': entity_id,
-            'entity_name': entity_name,
-            'entity_type': entity.get('type', 'UNKNOWN'),
-            'risk_score': round(total_score, 2),
-            'risk_rating': self._get_risk_rating_cwrs(total_score),
-            'vulnerability_count': len(entity_vulns),
-            'vulnerabilities': entity_vulns,
-            'components': {
-                'vulnerability_severity': round(vuln_score, 2),
-                'exploitability': round(exploit_score, 2),
-                'exposure': round(exposure_score, 2),
-                'criticality': round(criticality_score, 2)
-            }
-        }
-    
-    def _calculate_entity_risk_rei(self, entity: Dict[str, Any], entity_vulns: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Calculate REI risk for a specific entity."""
-        import math
-        
-        entity_id = entity.get('entityId')
-        entity_name = entity.get('displayName', entity_id)
-        
-        # Create minimal data structure for REI calculation
-        entity_data = {
-            'security_problems': entity_vulns,
-            'process_groups': [entity] if 'PROCESS_GROUP' in entity_id else [],
-            'hosts': []
-        }
-        
-        # Calculate REI for this entity
-        rei_result = self._calculate_rei_risk(entity_data)
-        
-        return {
-            'entity_id': entity_id,
-            'entity_name': entity_name,
-            'entity_type': entity.get('type', 'UNKNOWN'),
-            'risk_score': rei_result['score'],
-            'risk_rating': rei_result['rating'],
-            'vulnerability_count': len(entity_vulns),
-            'vulnerabilities': entity_vulns,
-            'components': rei_result['components']
-        }
-    
-    def _calculate_entity_risk_hrp(self, entity: Dict[str, Any], entity_vulns: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Calculate HRP risk for a specific entity."""
-        entity_id = entity.get('entityId')
-        entity_name = entity.get('displayName', entity_id)
-        
-        # Create minimal data structure for HRP calculation
-        entity_data = {
-            'security_problems': entity_vulns,
-            'process_groups': [entity] if 'PROCESS_GROUP' in entity_id else [],
-            'hosts': []
-        }
-        
-        # Calculate HRP for this entity
-        hrp_result = self._calculate_hrp_risk(entity_data)
-        
-        return {
-            'entity_id': entity_id,
-            'entity_name': entity_name,
-            'entity_type': entity.get('type', 'UNKNOWN'),
-            'risk_score': hrp_result['score'],
-            'risk_rating': hrp_result['rating'],
-            'vulnerability_count': len(entity_vulns),
-            'vulnerabilities': entity_vulns,
-            'components': hrp_result['components']
-        }
-    
-    def _calculate_vulnerability_severity_score(self, vulnerabilities: List[Dict[str, Any]]) -> float:
-        """Calculate vulnerability severity component using Davis Security Score (0-40 points)."""
-        score = 0
-        
-        for vuln in vulnerabilities:
-            risk_assessment = vuln.get('riskAssessment', {})
-            if not isinstance(risk_assessment, dict):
-                continue
-            
-            # Get Davis Security Score (riskScore) - preferred context-aware score
-            davis_score = risk_assessment.get('riskScore', 0)
-            
-            # Fallback to baseRiskScore (CVSS) if Davis score unavailable
-            if davis_score == 0:
-                davis_score = risk_assessment.get('baseRiskScore', 0)
-            
-            # Final fallback: use severity level mapping
-            if davis_score == 0:
-                severity = risk_assessment.get('riskLevel', 'LOW')
-                severity_map = {'CRITICAL': 9.5, 'HIGH': 7.5, 'MEDIUM': 5.0, 'LOW': 2.0}
-                davis_score = severity_map.get(severity, 0)
-            
-            # Apply Davis Security Score-based points (more granular than severity levels)
-            if davis_score >= 9.0:
-                score += 10  # Critical range
-            elif davis_score >= 7.0:
-                score += 5   # High range
-            elif davis_score >= 4.0:
-                score += 2   # Medium range
-            elif davis_score > 0:
-                score += 0.5 # Low range
-        
-        return min(score, self.weights['vulnerability'])
-    
-    def _calculate_exploitability_score(self, vulnerabilities: List[Dict[str, Any]]) -> float:
-        """Calculate exploitability component with proper public exploit detection (0-25 points)."""
-        score = 0
-        
-        for vuln in vulnerabilities:
-            risk_assessment = vuln.get('riskAssessment', {})
-            if not isinstance(risk_assessment, dict):
-                continue
-            
-            # Check exposure indicators
-            exposure = risk_assessment.get('exposure', {})
-            if isinstance(exposure, dict):
-                # Public network exposure adds moderate risk
-                if exposure.get('publicNetwork', False):
-                    score += 3
-                
-                # Public exploit available is HIGH priority - significant points
-                if exposure.get('publicExploit', False):
-                    score += 10  # Increased from 5 to emphasize active exploitation risk
-            
-            # Vulnerable function reachable/in-use is critical indicator
-            if risk_assessment.get('vulnerableFunctionInUse', False):
-                score += 5
-            
-            # Data asset reachable increases exploitability
-            if risk_assessment.get('dataAssetsReachable', False):
-                score += 3
-        
-        return min(score, self.weights['exploitability'])
-        
-        return min(score, self.weights['exploitability'])
-    
-    def _calculate_exposure_score(self, data: Dict[str, Any]) -> float:
-        """Calculate overall attack surface exposure with library vulnerability ratio (0-20 points)."""
-        score = 0
-        vulnerabilities = data['security_problems']
-        
-        # Count total vs vulnerable libraries
-        vulnerable_components = set()
-        all_components = set()
-        
-        for vuln in vulnerabilities:
-            if 'vulnerableComponents' in vuln:
-                for comp in vuln['vulnerableComponents']:
-                    comp_id = comp.get('id')
-                    if comp_id:
-                        vulnerable_components.add(comp_id)
-                        all_components.add(comp_id)
-        
-        # Also count components from process groups to get total library count
-        for pg in data.get('process_groups', []):
-            if 'softwareTechnologies' in pg:
-                for tech in pg['softwareTechnologies']:
-                    tech_id = tech.get('type', '') + '_' + tech.get('version', '')
-                    all_components.add(tech_id)
-        
-        # Calculate vulnerability ratio: vulnerable/total
-        if len(all_components) > 0:
-            vuln_ratio = len(vulnerable_components) / len(all_components)
-            # Higher ratio = more exposure, scale to 10 points
-            score += vuln_ratio * 10
-        else:
-            # Fallback: count vulnerable libraries, cap at 10
-            score += min(len(vulnerable_components), 10)
-        
-        # Check for network exposure indicators in process groups
-        network_exposed = 0
-        for pg in data.get('process_groups', []):
-            props = pg.get('properties', {})
-            
-            # Network listeners indicate exposure
-            if props.get('networkListenerCount', 0) > 0:
-                network_exposed += 1
-            
-            # Check for external connectivity
-            if props.get('serviceType') in ['WebService', 'WebRequest', 'RemoteService']:
-                network_exposed += 1
-        
-        # +1 point per network-exposed process group, cap contribution at 10
-        score += min(network_exposed, 10)
-        
-        return min(score, self.weights['exposure'])
-    
-    def _calculate_entity_exposure_score(self, entity: Dict[str, Any]) -> float:
-        """Calculate exposure score for a specific entity."""
-        score = 0
-        props = entity.get('properties', {})
-        
-        # Check for network exposure indicators
-        if props.get('networkListenerCount', 0) > 0:
-            score += 5
-        
-        # Check technology stack
-        if 'softwareTechnologies' in entity:
-            score += min(len(entity['softwareTechnologies']), 5)
-        
-        return min(score, self.weights['exposure'])
-    
-    def _calculate_criticality_score(self, data: Dict[str, Any]) -> float:
-        """Calculate system criticality based on network connectivity (0-15 points)."""
-        score = 0
-        
-        # Focus on network connectivity and attack surface
-        total_network_listeners = 0
-        external_services = 0
-        
-        for pg in data.get('process_groups', []):
-            props = pg.get('properties', {})
-            
-            # Count network listeners (services accepting connections)
-            listener_count = props.get('networkListenerCount', 0)
-            total_network_listeners += listener_count
-            
-            # Identify externally-facing services
-            service_type = props.get('serviceType', '')
-            if service_type in ['WebService', 'WebRequest', 'RemoteService', 'RMI']:
-                external_services += 1
-        
-        # Network listeners indicate attack surface (+0.5 per listener, cap at 7)
-        score += min(total_network_listeners * 0.5, 7)
-        
-        # External services are critical entry points (+2 per service, cap at 6)
-        score += min(external_services * 2, 6)
-        
-        # Host count as infrastructure scale indicator
-        host_count = len(data.get('hosts', []))
-        if host_count >= 10:
-            score += 2
-        elif host_count >= 5:
-            score += 1
-        
-        return min(score, self.weights['criticality'])
-    
-    # ========== REI (Risk Exposure Index) Methods ==========
-    
-    def _calculate_rei_risk(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Calculate REI (Risk Exposure Index) - logarithmic 1-10 scale."""
-        import math
-        from datetime import datetime
-        
-        vulnerabilities = data['security_problems']
-        total_risk_points = 0
-        
-        # Component 1: Vulnerability Impact Score (via Davis Security Score)
-        vuln_impact_points = self._calculate_rei_vuln_impact(vulnerabilities)
-        total_risk_points += vuln_impact_points
-        
-        # Component 2: Blast Radius Multiplier
-        blast_radius_multiplier = self._calculate_rei_blast_radius(vulnerabilities, data)
-        total_risk_points *= blast_radius_multiplier
-        
-        # Component 3: Active Threat Intelligence (no attacks, only exploit available)
-        threat_multiplier = self._calculate_rei_threat_intelligence(vulnerabilities)
-        total_risk_points *= threat_multiplier
-        
-        # Component 4: Remediation Debt
-        remediation_points = self._calculate_rei_remediation_debt(vulnerabilities)
-        total_risk_points += remediation_points
-        
-        # Apply logarithmic formula: REI = log₁₀(Total_Risk_Points + 1) × 1.5
-        rei_score = math.log10(total_risk_points + 1) * 1.5
-        rei_score = min(max(rei_score, 1), 10)  # Cap between 1-10
-        
-        risk_rating = self._get_risk_rating_rei(rei_score)
-        
-        return {
-            'score': round(rei_score, 2),
-            'rating': risk_rating,
-            'model': 'REI',
-            'components': {
-                'vulnerability_impact_points': round(vuln_impact_points, 2),
-                'blast_radius_multiplier': round(blast_radius_multiplier, 2),
-                'threat_multiplier': round(threat_multiplier, 2),
-                'remediation_debt_points': round(remediation_points, 2),
-                'total_risk_points': round(total_risk_points, 2)
-            }
-        }
-    
-    def _calculate_rei_vuln_impact(self, vulnerabilities: List[Dict[str, Any]]) -> float:
-        """Calculate vulnerability impact using Davis Security Score."""
-        points = 0
-        
-        for vuln in vulnerabilities:
-            risk_assessment = vuln.get('riskAssessment', {})
-            if not isinstance(risk_assessment, dict):
-                continue
-            
-            # Get Davis Security Score (riskScore) - preferred over CVSS baseRiskScore
-            davis_score = risk_assessment.get('riskScore', 0)
-            
-            # If no Davis score, fall back to baseRiskScore (CVSS), then severity level
-            if davis_score == 0:
-                davis_score = risk_assessment.get('baseRiskScore', 0)
-            
-            if davis_score == 0:
-                severity = risk_assessment.get('riskLevel', 'LOW')
-                davis_map = {'CRITICAL': 9.5, 'HIGH': 7.5, 'MEDIUM': 5.0, 'LOW': 2.0}
-                davis_score = davis_map.get(severity, 0)
-            
-            # Apply Davis Security Score-based points
-            if davis_score >= 9.0:
-                points += 1000
-            elif davis_score >= 7.0:
-                points += 500
-            elif davis_score >= 4.0:
-                points += 100
-            elif davis_score > 0:
-                points += 10
-        
-        return points
-    
-    def _calculate_rei_blast_radius(self, vulnerabilities: List[Dict[str, Any]], 
-                                     data: Dict[str, Any]) -> float:
-        """Calculate blast radius multiplier based on affected entities."""
-        multiplier = 1.0
-        
-        # Count affected entities
-        affected_pgs = set()
-        affected_hosts = set()
-        
-        for vuln in vulnerabilities:
-            remediation_items = vuln.get('remediationItems', [])
-            for item in remediation_items:
-                entity_id = item.get('id', '')
-                if 'PROCESS_GROUP' in entity_id:
-                    affected_pgs.add(entity_id)
-                elif 'HOST' in entity_id:
-                    affected_hosts.add(entity_id)
-        
-        # Apply multipliers
-        multiplier *= (1.2 ** len(affected_pgs))  # 1.2 per PG
-        multiplier *= (1.5 ** len(affected_hosts))  # 1.5 per host
-        
-        # Cap multiplier to prevent extreme values
-        return min(multiplier, 100.0)
-    
-    def _calculate_rei_threat_intelligence(self, vulnerabilities: List[Dict[str, Any]]) -> float:
-        """Calculate threat intelligence multiplier (no CISA KEV)."""
-        multiplier = 1.0
-        exploit_available_count = 0
-        
-        for vuln in vulnerabilities:
-            risk_assessment = vuln.get('riskAssessment', {})
-            if not isinstance(risk_assessment, dict):
-                continue
-            
-            exposure = risk_assessment.get('exposure', {})
-            if isinstance(exposure, dict):
-                # Check for public exploit availability
-                if exposure.get('publicExploit', False):
-                    exploit_available_count += 1
-        
-        # Apply ×2 multiplier if exploits are available
-        if exploit_available_count > 0:
-            multiplier = 2.0
-        
-        return multiplier
-    
-    def _calculate_rei_remediation_debt(self, vulnerabilities: List[Dict[str, Any]]) -> float:
-        """Calculate remediation debt points based on age and unremediated items."""
-        from datetime import datetime
-        import time
-        
-        points = 0
-        unremediated_count = 0
-        
-        for vuln in vulnerabilities:
-            # Check if unremediated
-            status = vuln.get('status', 'OPEN')
-            if status == 'OPEN':
-                unremediated_count += 1
-            
-            # Calculate age
-            first_seen = vuln.get('firstSeenTimestamp', 0)
-            if first_seen > 0:
-                # Convert milliseconds to days
-                age_days = (time.time() * 1000 - first_seen) / (1000 * 60 * 60 * 24)
-                
-                risk_assessment = vuln.get('riskAssessment', {})
-                if isinstance(risk_assessment, dict):
-                    severity = risk_assessment.get('riskLevel', 'LOW')
-                    
-                    # Add points per day based on severity
-                    if severity == 'CRITICAL':
-                        points += age_days * 10
-                    elif severity == 'HIGH':
-                        points += age_days * 5
-        
-        # Add points for unremediated items
-        points += unremediated_count * 50
-        
-        return points
-    
-    def _calculate_entity_criticality_score(self, entity: Dict[str, Any]) -> float:
-        """Calculate criticality score for a specific entity."""
-        score = 0
-        
-        # Management zone check
-        mzones = entity.get('managementZones', [])
-        if any('prod' in mz.get('name', '').lower() for mz in mzones):
-            score += 5
-        
-        # Process instance count (if available)
-        if 'instanceCount' in entity.get('properties', {}):
-            count = entity['properties']['instanceCount']
-            score += min(count // 10, 5)
-        
-        return min(score, self.weights['criticality'])
-    
-    def _get_risk_rating_cwrs(self, score: float) -> str:
-        """Convert CWRS score (0-100) to rating."""
-        if score >= 70:
-            return 'CRITICAL'
-        elif score >= 50:
-            return 'HIGH'
-        elif score >= 30:
-            return 'MEDIUM'
-        else:
-            return 'LOW'
-    
-    def _get_risk_rating_rei(self, rei_score: float) -> str:
-        """Convert REI score (1-10) to rating."""
-        if rei_score >= 9:
-            return 'CRITICAL'
-        elif rei_score >= 7:
-            return 'HIGH'
-        elif rei_score >= 4:
-            return 'MEDIUM'
-        else:
-            return 'LOW'
-    
-    # ========== HRP (Holistic Risk Posture) Methods ==========
-    
-    def _calculate_hrp_risk(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Calculate HRP (Holistic Risk Posture) - supports both v1 (1-10) and v2 (0-100) scales."""
-        # Check which model to use from config
-        risk_model = self.config.get('assessment.risk_model', 'HRP')
-        
-        if risk_model == 'HRP2':
-            return self._calculate_hrp_v2_risk(data)
-        else:
-            return self._calculate_hrp_v1_risk(data)
-    
-    def _calculate_hrp_v1_risk(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Calculate HRP v1.0 - 1-10 scale focused on blast radius and supply chain."""
-        import math
-        from datetime import datetime
-        
-        vulnerabilities = data['security_problems']
-        
-        # Component 1: Critical Vulnerabilities (50% weight)
-        critical_vuln_score = self._calculate_hrp_critical_vulnerabilities(vulnerabilities)
-        
-        # Component 2: Topology Risk / Supply Chain (25% weight)
-        topology_score = self._calculate_hrp_topology_risk(vulnerabilities, data)
-        
-        # Component 3: Aging Factor / Remediation Velocity (25% weight)
-        aging_score = self._calculate_hrp_aging_factor(vulnerabilities)
-        
-        # Calculate weighted total (scale 0-100)
-        total_score = (critical_vuln_score * 0.5) + (topology_score * 0.25) + (aging_score * 0.25)
-        
-        # Convert to 1-10 scale: HRP = (total_score / 100) * 9 + 1
-        hrp_score = (total_score / 100) * 9 + 1
-        hrp_score = min(max(hrp_score, 1), 10)
-        
-        risk_rating = self._get_risk_rating_hrp(hrp_score)
-        
-        return {
-            'score': round(hrp_score, 2),
-            'rating': risk_rating,
-            'model': 'HRP',
-            'components': {
-                'critical_vulnerabilities': round(critical_vuln_score, 2),
-                'topology_risk': round(topology_score, 2),
-                'aging_factor': round(aging_score, 2),
-                'total_weighted_score': round(total_score, 2)
-            }
-        }
+    # ========== HRP v2.0 (Holistic Risk Posture v2) Methods ==========
     
     def _calculate_hrp_v2_risk(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Calculate HRP v2.0 - 0-100 scale with square root dampening for high sensitivity."""
@@ -1209,6 +557,144 @@ class RiskCalculator:
                 'topology_score': round(topology_score, 2),
                 'aging_score': round(aging_score, 2)
             }
+        }
+    
+    def calculate_remediation_priorities(self, data: Dict[str, Any], current_overall_risk: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Calculate top 10 vulnerabilities by remediation impact using HRP v2.0.
+        
+        Returns list of vulnerabilities sorted by impact (score improvement if remediated).
+        Uses actual recalculation for accurate impact assessment.
+        """
+        import copy
+        vulnerabilities = data['security_problems']
+        priorities = []
+        current_score = current_overall_risk['score']
+        
+        logger.info(f"Calculating remediation impact for {len(vulnerabilities)} vulnerabilities...")
+        
+        for idx, vuln in enumerate(vulnerabilities):
+            # Create deep copy of data without this vulnerability
+            temp_data = copy.deepcopy(data)
+            temp_data['security_problems'] = [
+                v for v in temp_data['security_problems'] 
+                if v.get('securityProblemId') != vuln.get('securityProblemId')
+            ]
+            
+            # Recalculate score without this vulnerability
+            try:
+                temp_risk = self.calculate_overall_risk(temp_data)
+                temp_score = temp_risk['score']
+                
+                # Calculate impact (how much score improves)
+                impact = current_score - temp_score
+            except Exception as e:
+                logger.warning(f"Failed to calculate impact for vulnerability {vuln.get('securityProblemId')}: {e}")
+                impact = 0
+            
+            # Get affected PGIs for display
+            affected_pgis = self._get_affected_pgis(vuln, data)
+            
+            risk_assessment = vuln.get('riskAssessment', {})
+            if not isinstance(risk_assessment, dict):
+                risk_assessment = {}
+            
+            davis_score = risk_assessment.get('riskScore', risk_assessment.get('baseRiskScore', 0))
+            
+            priorities.append({
+                'vulnerability_id': vuln.get('securityProblemId'),
+                'title': vuln.get('title', 'Unknown'),
+                'cveIds': vuln.get('cveIds', []),
+                'externalVulnerabilityId': vuln.get('externalVulnerabilityId'),
+                'displayId': vuln.get('displayId'),
+                'securityProblemId': vuln.get('securityProblemId'),
+                'severity': risk_assessment.get('riskLevel', 'UNKNOWN'),
+                'davis_score': davis_score,
+                'impact': round(impact, 3),
+                'affected_pgis': affected_pgis,
+                'affected_pgi_count': len(affected_pgis)
+            })
+            
+            # Log progress every 20 vulnerabilities
+            if (idx + 1) % 20 == 0:
+                logger.info(f"  Processed {idx + 1}/{len(vulnerabilities)} vulnerabilities...")
+        
+        # Sort by impact (descending) and return top 10
+        priorities.sort(key=lambda x: x['impact'], reverse=True)
+        return priorities[:10]
+    
+    def _get_affected_pgis(self, vuln: Dict[str, Any], data: Dict[str, Any]) -> List[Dict[str, str]]:
+        """Extract affected PGIs from a vulnerability."""
+        affected_pgis = []
+        related_entities = vuln.get('relatedEntities', {})
+        
+        for entity_type in ['services', 'hosts', 'kubernetesWorkloads', 'kubernetesClusters']:
+            entities_list = related_entities.get(entity_type, [])
+            for related_entity in entities_list:
+                affected = related_entity.get('affectedEntities', [])
+                for entity_id in affected:
+                    if 'PROCESS_GROUP_INSTANCE' in entity_id:
+                        # Find entity name
+                        entity_name = None
+                        for pg in data.get('process_groups', []):
+                            if pg.get('entityId') == entity_id:
+                                entity_name = pg.get('displayName', entity_id)
+                                break
+                        affected_pgis.append({
+                            'id': entity_id,
+                            'name': entity_name or entity_id
+                        })
+        
+        return affected_pgis
+    
+    def calculate_entity_risk(self, entity: Dict[str, Any], vulnerabilities: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Calculate HRP v2.0 risk score for a specific entity."""
+        entity_id = entity.get('entityId')
+        entity_name = entity.get('displayName', entity_id)
+        
+        # Filter vulnerabilities affecting this entity
+        entity_vulns = []
+        for v in vulnerabilities:
+            related_entities = v.get('relatedEntities', {})
+            
+            # Check all entity types in relatedEntities
+            for entity_type in ['services', 'hosts', 'kubernetesWorkloads', 'kubernetesClusters']:
+                entities_list = related_entities.get(entity_type, [])
+                for related_entity in entities_list:
+                    affected = related_entity.get('affectedEntities', [])
+                    if entity_id in affected:
+                        entity_vulns.append(v)
+                        break
+                if v in entity_vulns:
+                    break
+        
+        if not entity_vulns:
+            return {
+                'entity_id': entity_id,
+                'entity_name': entity_name,
+                'risk_score': 0,
+                'risk_rating': 'NONE',
+                'vulnerability_count': 0
+            }
+        
+        # Create minimal data structure for HRP v2 calculation
+        entity_data = {
+            'security_problems': entity_vulns,
+            'process_groups': [entity] if 'PROCESS_GROUP' in entity_id else [],
+            'hosts': []
+        }
+        
+        # Calculate HRP v2 for this entity
+        hrp_result = self._calculate_hrp_v2_risk(entity_data)
+        
+        return {
+            'entity_id': entity_id,
+            'entity_name': entity_name,
+            'entity_type': entity.get('type', 'UNKNOWN'),
+            'risk_score': hrp_result['score'],
+            'risk_rating': hrp_result['rating'],
+            'vulnerability_count': len(entity_vulns),
+            'vulnerabilities': entity_vulns,
+            'components': hrp_result['components']
         }
     
     def _calculate_hrp_v2_vulnerabilities(self, vulnerabilities: List[Dict[str, Any]], 
@@ -1860,10 +1346,8 @@ def run_assessment(config: AstraConfig) -> str:
     calculator = RiskCalculator(config)
     overall_risk = calculator.calculate_overall_risk(data)
     
-    # Log overall risk with appropriate scale
-    risk_model = config.get('assessment.risk_model', 'CWRS')
-    scale_max = "10" if risk_model == 'REI' else "100"
-    logger.info(f"Overall Risk Score: {overall_risk['score']}/{scale_max} ({overall_risk['rating']})")
+    # Log overall risk (HRP v2.0: 0-100 scale)
+    logger.info(f"Overall Risk Score: {overall_risk['score']}/100 ({overall_risk['rating']})")
     
     # Calculate entity-level risks
     # Note: Only calculates for process groups in data['process_groups'], which are already filtered
@@ -1911,12 +1395,7 @@ def run_dampening_optimization(config: AstraConfig, report_json_path: str) -> No
     logger.info("HRP v2.0 - Auto-Dampening Optimization")
     logger.info("="*80)
     
-    # Check if HRP v2 is the active model
-    risk_model = config.get('assessment.risk_model', 'CWRS')
-    if risk_model != 'HRP2':
-        logger.error(f"Dampening optimization requires HRP2 model. Current: {risk_model}")
-        logger.error("Update config.yaml: assessment.risk_model = 'HRP2'")
-        return
+    # HRP v2.0 is the only model now, no check needed
     
     # Load report data
     try:

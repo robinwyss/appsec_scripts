@@ -4,11 +4,8 @@ A comprehensive Python tool for quantifying application security risk using Dyna
 
 ## Overview
 
-ASTRA implements four risk scoring models:
-- **CWRS (Composite Weighted Risk Score)**: 0-100% scale - "What's our security posture?"
-- **REI (Risk Exposure Index)**: 1-10 logarithmic scale - "How urgent is the threat?"
-- **HRP v1.0 (Holistic Risk Posture)**: 1-10 scale - "How interconnected and aged is our risk?"
-- **HRP v2.0 (Holistic Risk Posture v2)**: 0-100 scale - "What's the potential business damage if exploited?" ✨
+ASTRA implements the **HRP v2.0 (Holistic Risk Posture v2)** risk scoring model:
+- **HRP v2.0**: 0-100 scale - "What's the potential business damage if exploited?" ✨
 
 ### HRP v2.0: Business Impact Risk Assessment
 
@@ -33,11 +30,11 @@ HRP v2.0 measures **"Potential Business Impact from Security Exposure"** by answ
 ## Features
 
 - Collects vulnerability data from Dynatrace over configurable timeframes (default: 30 days)
-- **Four Risk Models:**
-  - **CWRS (0-100%)**: Balanced weighted scoring
-  - **REI (1-10)**: Logarithmic scale emphasizing severity
-  - **HRP v1.0 (1-10)**: Topology-aware risk with aging
-  - **HRP v2.0 (0-100)**: Business impact with 4-component model
+- **HRP v2.0 Risk Model** - Business impact with 4-component model:
+  - 60% Vulnerabilities (exploitability likelihood)
+  - 20% Supply Chain (vulnerable library percentage)
+  - 15% Topology (blast radius and interconnectivity)
+  - 5% Aging (exposure duration)
 - Uses **Davis Security Score** for context-aware vulnerability assessment
 - **Auto-Dampening Optimization**: Automatically tune HRP v2.0 parameters for your environment
 - Generates JSON report for historical tracking
