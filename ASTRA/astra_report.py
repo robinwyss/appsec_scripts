@@ -1913,9 +1913,9 @@ def run_dampening_optimization(config: AstraConfig, report_json_path: str) -> No
     
     # Check if HRP v2 is the active model
     risk_model = config.get('assessment.risk_model', 'CWRS')
-    if risk_model != 'HRP_V2':
-        logger.error(f"Dampening optimization requires HRP_V2 model. Current: {risk_model}")
-        logger.error("Update config.yaml: assessment.risk_model = 'HRP_V2'")
+    if risk_model != 'HRP2':
+        logger.error(f"Dampening optimization requires HRP2 model. Current: {risk_model}")
+        logger.error("Update config.yaml: assessment.risk_model = 'HRP2'")
         return
     
     # Load report data

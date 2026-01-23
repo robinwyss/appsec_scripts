@@ -235,7 +235,7 @@ The feature integrates seamlessly with existing ASTRA workflow:
 **CLI Flag:** `--hrp-dampen` or `-hd`
 
 **Requirements:**
-- Must use HRP_V2 risk model in config.yaml
+- Must use HRP2 risk model in config.yaml
 - Must run assessment first (provides data)
 
 **Output:**
@@ -250,11 +250,11 @@ The feature integrates seamlessly with existing ASTRA workflow:
 
 ## Troubleshooting
 
-### "Dampening optimization requires HRP_V2 model"
+### "Dampening optimization requires HRP2 model"
 **Solution:** Update config.yaml:
 ```yaml
 assessment:
-  risk_model: 'HRP_V2'
+  risk_model: 'HRP2'
 ```
 
 ### "Failed to load report data"
