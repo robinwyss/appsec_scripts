@@ -2,10 +2,6 @@
 """
 ASTRA - Application Security Threat & Risk Assessment
 Generates comprehensive risk assessment reports for Dynatrace-monitored applications.
-
-Supports multiple phases:
-- Phase 1: Current risk assessment with detailed scoring
-- Phase 2: Temporal comparison and risk trend analysis (future)
 """
 
 import sys
@@ -1838,8 +1834,8 @@ class PdfGenerator:
 
 
 
-def run_phase1(config: AstraConfig) -> str:
-    """Execute Phase 1: Current risk assessment without temporal comparison.
+def run_assessment(config: AstraConfig) -> str:
+    """Execute risk assessment and generate reports.
     
     Args:
         config: Loaded ASTRA configuration
@@ -1847,7 +1843,7 @@ def run_phase1(config: AstraConfig) -> str:
     Returns:
         Path to generated JSON report
     """
-    logger.info("Running Phase 1: Current Risk Assessment")
+    logger.info("Running Risk Assessment")
     
     # Initialize Dynatrace API
     api = DynatraceApi(
@@ -1893,7 +1889,7 @@ def run_phase1(config: AstraConfig) -> str:
     pdf_file = pdf_generator.generate(json_file)
     
     logger.info("="*80)
-    logger.info("Phase 1 Assessment Complete!")
+    logger.info("Assessment Complete!")
     logger.info(f"JSON Report: {json_file}")
     if pdf_file:
         logger.info(f"PDF Report: {pdf_file}")
@@ -1902,31 +1898,12 @@ def run_phase1(config: AstraConfig) -> str:
     return json_file
 
 
-def run_phase2(config: AstraConfig, baseline_report: Optional[str] = None) -> None:
-    """Execute Phase 2: Temporal comparison and trend analysis.
-    
-    Args:
-        config: Loaded ASTRA configuration
-        baseline_report: Path to baseline JSON report for comparison (optional)
-    """
-    logger.info("Running Phase 2: Temporal Comparison & Trend Analysis")
-    logger.warning("Phase 2 is not yet implemented. This is a placeholder for future functionality.")
-    logger.info("Phase 2 will include:")
-    logger.info("  - Comparison with previous JSON snapshots")
-    logger.info("  - Risk trend analysis (improvement/degradation)")
-    logger.info("  - Velocity calculations (risk change over time)")
-    logger.info("  - Identification of new/resolved vulnerabilities")
-    logger.info("  - Trend visualizations in PDF reports")
-    # TODO: Implement Phase 2 logic
-    raise NotImplementedError("Phase 2 functionality will be implemented in a future version")
-
-
 def run_dampening_optimization(config: AstraConfig, report_json_path: str) -> None:
     """Execute HRP v2.0 dampening parameter optimization.
     
     Args:
         config: Loaded ASTRA configuration
-        report_json_path: Path to JSON report from Phase 1 assessment
+        report_json_path: Path to JSON report from assessment
     """
     from dampening_optimizer import DampeningOptimizer
     
@@ -2000,27 +1977,16 @@ def run_dampening_optimization(config: AstraConfig, report_json_path: str) -> No
 
 
 def main():
-    """Main execution function with phase selection."""
+    """Main execution function."""
     # Parse arguments
     parser = ArgumentParser(
         description='ASTRA - Application Security Threat & Risk Assessment',
-        epilog='Example: %(prog)s -c config.yaml --phase-1'
+        epilog='Example: %(prog)s -c config.yaml'
     )
     parser.add_argument('-c', '--config', dest='config', required=True,
                        help='Path to configuration YAML file')
     parser.add_argument('--debug', dest='debug', action='store_true',
                        help='Enable debug logging')
-    
-    # Phase selection (mutually exclusive)
-    phase_group = parser.add_mutually_exclusive_group()
-    phase_group.add_argument('-1', '--phase-1', dest='phase1', action='store_true',
-                           help='Run Phase 1: Current risk assessment (default)')
-    phase_group.add_argument('-2', '--phase-2', dest='phase2', action='store_true',
-                           help='Run Phase 2: Temporal comparison and trend analysis')
-    
-    # Phase 2 specific arguments
-    parser.add_argument('--baseline', dest='baseline', type=str,
-                       help='Path to baseline JSON report for Phase 2 comparison')
     
     # HRP v2.0 dampening optimization
     parser.add_argument('--hrp-dampen', '-hd', dest='optimize_dampening', 
@@ -2041,10 +2007,6 @@ def main():
         # Keep default WARNING level for less verbose output
         pass
     
-    # Default to Phase 1 if no phase specified
-    if not args.phase1 and not args.phase2:
-        args.phase1 = True
-    
     logger.info("="*80)
     logger.info("ASTRA - Application Security Threat & Risk Assessment")
     logger.info("="*80)
@@ -2053,19 +2015,13 @@ def main():
         # Load configuration
         config = AstraConfig(args.config)
         
-        # Execute selected phase
-        if args.phase1:
-            result_path = run_phase1(config)
-            
-            # If optimization requested, run it after assessment
-            if args.optimize_dampening:
-                run_dampening_optimization(config, result_path)
-        elif args.phase2:
-            run_phase2(config, baseline_report=args.baseline)
+        # Execute assessment
+        result_path = run_assessment(config)
         
-    except NotImplementedError as e:
-        logger.error(f"{e}")
-        sys.exit(2)
+        # If optimization requested, run it after assessment
+        if args.optimize_dampening:
+            run_dampening_optimization(config, result_path)
+        
     except Exception as e:
         logger.error(f"Assessment failed: {e}", exc_info=True)
         sys.exit(1)

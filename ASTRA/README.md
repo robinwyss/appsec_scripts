@@ -30,13 +30,8 @@ HRP v2.0 measures **"Potential Business Impact from Security Exposure"** by answ
 
 **Key Distinction**: HRP represents **exploitability likelihood multiplied by blast radius impact** - the potential operational and security damage if an attacker successfully exploited the identified vulnerabilities.
 
-Supports multiple assessment phases:
-- **Phase 1**: Current risk assessment with detailed scoring
-- **Phase 2**: Temporal comparison and trend analysis (coming soon)
-
 ## Features
 
-### Phase 1 - Current Risk Assessment
 - Collects vulnerability data from Dynatrace over configurable timeframes (default: 30 days)
 - **Four Risk Models:**
   - **CWRS (0-100%)**: Balanced weighted scoring
@@ -47,12 +42,6 @@ Supports multiple assessment phases:
 - **Auto-Dampening Optimization**: Automatically tune HRP v2.0 parameters for your environment
 - Generates JSON report for historical tracking
 - Produces professional PDF reports with methodology explanations
-
-### Phase 2 - Comparative Assessment (Coming Soon)
-- Compares current vs. previous assessments
-- Highlights resolved vulnerabilities
-- Tracks risk improvement metrics
-- Shows risk trend analysis
 
 ## Installation
 
@@ -90,26 +79,10 @@ export DT_API_TOKEN="dt0c01.ABC123..."
 
 ### Basic Usage
 
-Run a Phase 1 assessment (default behavior):
+Run a risk assessment:
 
 ```bash
 python ASTRA/astra_report.py -c ASTRA/config.yaml
-```
-
-Or explicitly specify Phase 1:
-
-```bash
-python ASTRA/astra_report.py -c ASTRA/config.yaml --phase-1
-# or use short form:
-python ASTRA/astra_report.py -c ASTRA/config.yaml -1
-```
-
-### Phase 2 - Temporal Comparison (Coming Soon)
-
-```bash
-python ASTRA/astra_report.py -c ASTRA/config.yaml --phase-2
-# Optional: specify baseline report for comparison
-python ASTRA/astra_report.py -c ASTRA/config.yaml -2 --baseline reports/astra_report_20260122.json
 ```
 
 ### With Debug Logging
@@ -123,9 +96,9 @@ python ASTRA/astra_report.py -c ASTRA/config.yaml --debug
 Automatically optimize dampening parameters for your environment:
 
 ```bash
-python ASTRA/astra_report.py -c ASTRA/config.yaml -1 --hrp-dampen
+python ASTRA/astra_report.py -c ASTRA/config.yaml --hrp-dampen
 # or use short form:
-python ASTRA/astra_report.py -c ASTRA/config.yaml -1 -hd
+python ASTRA/astra_report.py -c ASTRA/config.yaml -hd
 ```
 
 This feature:

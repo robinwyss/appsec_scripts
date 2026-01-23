@@ -26,11 +26,11 @@ Manual tuning is time-consuming and requires expertise. Auto-optimization does t
 Run an assessment with automatic optimization:
 
 ```bash
-python astra_report.py -c config.yaml --phase-1 --hrp-dampen
+python astra_report.py -c config.yaml --hrp-dampen
 ```
 
 This will:
-1. Complete a normal Phase 1 assessment
+1. Complete a normal assessment
 2. Analyze your environment's vulnerability profile
 3. Test 25 parameter combinations (5 exponents × 5 max scores)
 4. Display recommendations with rationale
@@ -40,7 +40,7 @@ This will:
 
 ```
 ┌─────────────────────────┐
-│  Run Phase 1 Assessment │
+│  Run Assessment         │
 └───────────┬─────────────┘
             │
             v
@@ -236,7 +236,7 @@ The feature integrates seamlessly with existing ASTRA workflow:
 
 **Requirements:**
 - Must use HRP_V2 risk model in config.yaml
-- Must run Phase 1 assessment first (provides data)
+- Must run assessment first (provides data)
 
 **Output:**
 - Optimization report (console)
@@ -259,7 +259,7 @@ assessment:
 
 ### "Failed to load report data"
 **Cause:** JSON report not found or corrupted
-**Solution:** Ensure Phase 1 completes successfully before optimization
+**Solution:** Ensure assessment completes successfully before optimization
 
 ### All parameters have high fitness scores
 **Cause:** Unusual vulnerability profile (very high or very low counts)
