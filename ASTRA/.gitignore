@@ -1,0 +1,19 @@
+# ASTRA specific ignores
+config.yaml
+*.log
+reports/
+archives/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+ENV/
+.DS_Store

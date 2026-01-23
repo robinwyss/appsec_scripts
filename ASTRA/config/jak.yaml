@@ -1,0 +1,52 @@
+# ASTRA Phase 1 Configuration Example
+# Application Security Threat & Risk Assessment
+
+
+dynatrace:
+  tenant_url: "https://jak10854.live.dynatrace.com"
+  api_token: "${DT_API_TOKEN}"  # Use environment variable
+  timeout: 30  # API timeout in seconds
+
+# Assessment Configuration
+assessment:
+  name: "Q1 2026 Security Assessment"
+  description: "Quarterly security risk assessment for production applications"
+  
+  # Time Period for Analysis
+  period:
+    duration: "30d"  # Last 30 days (supports: 30d, 7d, 24h, etc.)
+    # Alternative: Use explicit date range
+    # from: "2026-01-01T00:00:00Z"
+    # to: "2026-01-31T23:59:59Z"
+  
+  # Target Selection - Use ONE or MORE methods
+  targets:
+    # Method 1: By Service Name (contains match)
+
+    host_ids:
+      - HOST-9F1EE93106E67130
+   
+    
+    # Filters
+    exclude_test_environments: true
+    only_public_facing: false
+    minimum_cvss: 4.0  # Only include vulnerabilities with CVSS >= 4.0
+    severity_levels:
+      - "CRITICAL"
+      - "HIGH"
+      - "MEDIUM"
+  
+  # Risk Indicators to Calculate
+  indicators:
+    - "CWRS"  # Composite Weighted Risk Score (0-100%)
+    - "REI"   # Risk Exposure Index (1-10)
+    - "PARM"  # Probabilistic Application Risk Model (0-100%)
+
+# Output Configuration
+output:
+  format: "pdf"  # Options: pdf, json, html, csv
+  path: "./reports/security-assessment-2026-q1.pdf"
+  include_summary: true    # Executive summary page
+  include_details: true    # Detailed findings per entity
+  include_charts: true     # Visualizations and graphs
+  # template: "./templates/custom-report.tmpl"  # Optional custom template

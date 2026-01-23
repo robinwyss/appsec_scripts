@@ -11,3 +11,5 @@ tkn
 tempconfig/
 production_promotion_check.log
 __pycache__/
+.vscode/
+.vscode
