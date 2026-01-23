@@ -1838,11 +1838,14 @@ class PdfGenerator:
 
 
 
-def run_phase1(config: AstraConfig) -> None:
+def run_phase1(config: AstraConfig) -> str:
     """Execute Phase 1: Current risk assessment without temporal comparison.
     
     Args:
         config: Loaded ASTRA configuration
+        
+    Returns:
+        Path to generated JSON report
     """
     logger.info("Running Phase 1: Current Risk Assessment")
     
@@ -1895,6 +1898,8 @@ def run_phase1(config: AstraConfig) -> None:
     if pdf_file:
         logger.info(f"PDF Report: {pdf_file}")
     logger.info("="*80)
+    
+    return json_file
 
 
 def run_phase2(config: AstraConfig, baseline_report: Optional[str] = None) -> None:
@@ -1914,6 +1919,84 @@ def run_phase2(config: AstraConfig, baseline_report: Optional[str] = None) -> No
     logger.info("  - Trend visualizations in PDF reports")
     # TODO: Implement Phase 2 logic
     raise NotImplementedError("Phase 2 functionality will be implemented in a future version")
+
+
+def run_dampening_optimization(config: AstraConfig, report_json_path: str) -> None:
+    """Execute HRP v2.0 dampening parameter optimization.
+    
+    Args:
+        config: Loaded ASTRA configuration
+        report_json_path: Path to JSON report from Phase 1 assessment
+    """
+    from dampening_optimizer import DampeningOptimizer
+    
+    logger.info("="*80)
+    logger.info("HRP v2.0 - Auto-Dampening Optimization")
+    logger.info("="*80)
+    
+    # Check if HRP v2 is the active model
+    risk_model = config.get('assessment.risk_model', 'CWRS')
+    if risk_model != 'HRP_V2':
+        logger.error(f"Dampening optimization requires HRP_V2 model. Current: {risk_model}")
+        logger.error("Update config.yaml: assessment.risk_model = 'HRP_V2'")
+        return
+    
+    # Load report data
+    try:
+        with open(report_json_path, 'r') as f:
+            report_data = json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to load report data: {e}")
+        return
+    
+    # Initialize calculator (needed for simulation)
+    calculator = RiskCalculator(config)
+    
+    # Run optimization
+    optimizer = DampeningOptimizer(report_data, config, calculator)
+    
+    # Analyze environment
+    logger.info("Analyzing environment complexity...")
+    env_analysis = optimizer.analyze_environment()
+    logger.info(f"  Total vulnerabilities: {env_analysis['total_vulnerabilities']}")
+    logger.info(f"  Current score: {env_analysis['current_score']:.2f}")
+    logger.info(f"  Saturated components: {len(env_analysis['saturated_components'])}")
+    
+    # Find optimal parameters
+    logger.info("")
+    logger.info("Starting parameter grid search (25 combinations)...")
+    result = optimizer.find_optimal_params()
+    
+    # Generate and display report
+    logger.info("")
+    report = optimizer.generate_report(result)
+    print("\n" + report)
+    
+    # Ask user for confirmation
+    print("\nApply these parameters? (yes/no): ", end='')
+    response = input().strip().lower()
+    
+    if response in ['yes', 'y']:
+        # Backup current config
+        backup_file = optimizer.backup_config("before-optimization")
+        logger.info(f"Config backed up to: {backup_file}")
+        
+        # Update config
+        optimizer.update_config(
+            result['exponent'],
+            result['max_score'],
+            f"Optimized on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        
+        print("\n✓ Configuration updated successfully!")
+        print(f"  • Dampening exponent: {result['exponent']}")
+        print(f"  • Max theoretical score: {result['max_score']}")
+        print(f"\nRe-run assessment to see the effect:")
+        print(f"  python astra_report.py -c {config.config_path} --phase-1")
+    else:
+        print("\nOptimization cancelled. No changes made.")
+    
+    logger.info("="*80)
 
 
 def main():
@@ -1938,6 +2021,11 @@ def main():
     # Phase 2 specific arguments
     parser.add_argument('--baseline', dest='baseline', type=str,
                        help='Path to baseline JSON report for Phase 2 comparison')
+    
+    # HRP v2.0 dampening optimization
+    parser.add_argument('--hrp-dampen', '-hd', dest='optimize_dampening', 
+                       action='store_true',
+                       help='Optimize HRP v2.0 dampening parameters for environment')
     
     args = parser.parse_args()
     
@@ -1967,7 +2055,11 @@ def main():
         
         # Execute selected phase
         if args.phase1:
-            run_phase1(config)
+            result_path = run_phase1(config)
+            
+            # If optimization requested, run it after assessment
+            if args.optimize_dampening:
+                run_dampening_optimization(config, result_path)
         elif args.phase2:
             run_phase2(config, baseline_report=args.baseline)
         

@@ -38,10 +38,13 @@ Supports multiple assessment phases:
 
 ### Phase 1 - Current Risk Assessment
 - Collects vulnerability data from Dynatrace over configurable timeframes (default: 30 days)
-- **Dual Risk Models:**
+- **Four Risk Models:**
   - **CWRS (0-100%)**: Balanced weighted scoring
   - **REI (1-10)**: Logarithmic scale emphasizing severity
+  - **HRP v1.0 (1-10)**: Topology-aware risk with aging
+  - **HRP v2.0 (0-100)**: Business impact with 4-component model
 - Uses **Davis Security Score** for context-aware vulnerability assessment
+- **Auto-Dampening Optimization**: Automatically tune HRP v2.0 parameters for your environment
 - Generates JSON report for historical tracking
 - Produces professional PDF reports with methodology explanations
 
@@ -114,6 +117,26 @@ python ASTRA/astra_report.py -c ASTRA/config.yaml -2 --baseline reports/astra_re
 ```bash
 python ASTRA/astra_report.py -c ASTRA/config.yaml --debug
 ```
+
+### HRP v2.0 Auto-Dampening Optimization 🎯
+
+Automatically optimize dampening parameters for your environment:
+
+```bash
+python ASTRA/astra_report.py -c ASTRA/config.yaml -1 --hrp-dampen
+# or use short form:
+python ASTRA/astra_report.py -c ASTRA/config.yaml -1 -hd
+```
+
+This feature:
+- Analyzes your vulnerability profile
+- Tests 25 parameter combinations
+- Recommends optimal dampening settings
+- Places scores in actionable range (70-90)
+- Ensures visible sensitivity to fixes (8-15 points)
+- Avoids score saturation
+
+**See [DAMPENING_OPTIMIZATION.md](DAMPENING_OPTIMIZATION.md) for detailed guide.**
 
 ### Configuration Options
 
