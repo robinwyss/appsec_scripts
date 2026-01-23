@@ -123,21 +123,34 @@ class DampeningOptimizer:
             # Create filtered data if exclusions provided
             test_data = deepcopy(self.report_data)
             
+            # Reconstruct security_problems from entities (JSON report format)
+            all_vulnerabilities = []
+            seen_vuln_ids = set()
+            
+            for entity in test_data.get('entities', []):
+                for vuln in entity.get('vulnerabilities', []):
+                    vuln_id = vuln.get('securityProblemId') or vuln.get('vulnerability_id')
+                    if vuln_id and vuln_id not in seen_vuln_ids:
+                        seen_vuln_ids.add(vuln_id)
+                        all_vulnerabilities.append(vuln)
+            
+            # Filter if exclusions provided
             if exclude_vuln_ids:
-                # Filter vulnerabilities from security_problems
-                if 'security_problems' in test_data:
-                    test_data['security_problems'] = [
-                        v for v in test_data['security_problems']
-                        if (v.get('securityProblemId') not in exclude_vuln_ids and
-                            v.get('vulnerability_id') not in exclude_vuln_ids)
-                    ]
-                
-                # Update summary
-                test_data['summary']['total_vulnerabilities'] = len(test_data.get('security_problems', []))
+                all_vulnerabilities = [
+                    v for v in all_vulnerabilities
+                    if (v.get('securityProblemId') not in exclude_vuln_ids and
+                        v.get('vulnerability_id') not in exclude_vuln_ids)
+                ]
+            
+            # Build data structure that _calculate_hrp_v2_risk expects
+            calc_data = {
+                'security_problems': all_vulnerabilities,
+                'process_groups': [],  # Not needed for overall calculation
+                'hosts': []
+            }
             
             # Calculate HRP v2 risk with the test data
-            # _calculate_hrp_v2_risk expects data with 'security_problems' key
-            result = self.calculator._calculate_hrp_v2_risk(test_data)
+            result = self.calculator._calculate_hrp_v2_risk(calc_data)
             
             return result.get('score', 0), result.get('components', {})
             
