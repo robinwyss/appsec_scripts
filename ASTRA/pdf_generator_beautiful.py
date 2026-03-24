@@ -665,25 +665,20 @@ class BeautifulPDFGenerator:
         
         # Component breakdown table
         comp_data = [
-            [Paragraph("<b>Component</b>", styles['AstraBodyText']), 
-             Paragraph("<b>Score</b>", styles['AstraBodyText']),
-             Paragraph("<b>Weight</b>", styles['AstraBodyText']),
-             Paragraph("<b>Description</b>", styles['AstraBodyText'])],
+            [Paragraph("<font color='#d32f2f'><b>Component</b></font>", styles['AstraBodyText']), 
+             Paragraph("<font color='#d32f2f'><b>Score</b></font>", styles['AstraBodyText']),
+             Paragraph("<font color='#d32f2f'><b>Description</b></font>", styles['AstraBodyText'])],
             [Paragraph("<b>Vulnerabilities</b>", styles['AstraBodyText']), 
              Paragraph(f"<b>{components['vulnerability_score']:.2f}</b>", styles['AstraBodyText']),
-             Paragraph("60%", styles['AstraBodyText']),
              Paragraph("Power-dampened severity with exploitability multipliers and CVE bonus", styles['SmallText'])],
             [Paragraph("<b>Supply Chain</b>", styles['AstraBodyText']),
              Paragraph(f"<b>{components['supply_chain_score']:.2f}</b>", styles['AstraBodyText']),
-             Paragraph("20%", styles['AstraBodyText']),
              Paragraph("<b>HIGH IMPORTANCE:</b> Vulnerable libraries ratio using power-law analysis", styles['SmallText'])],
             [Paragraph("<b>Topology</b>", styles['AstraBodyText']),
              Paragraph(f"<b>{components['topology_score']:.2f}</b>", styles['AstraBodyText']),
-             Paragraph("15%", styles['AstraBodyText']),
              Paragraph("Blast radius, connectivity depth, and critical path (databases, services, K8s)", styles['SmallText'])],
             [Paragraph("<b>Aging</b>", styles['AstraBodyText']),
              Paragraph(f"<b>{components['aging_score']:.2f}</b>", styles['AstraBodyText']),
-             Paragraph("5%", styles['AstraBodyText']),
              Paragraph("Continuous time-weighted penalty for unresolved vulnerabilities", styles['SmallText'])]
         ]
         

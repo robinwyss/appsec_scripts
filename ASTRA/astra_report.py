@@ -130,12 +130,32 @@ class DataCollector:
         # Get filter configuration
         filter_type = self.config.get('filters.type', 'process_group')
         filter_ids = self.config.get('filters.ids', [])
+        management_zones = self.config.get('filters.management_zones', [])
         
         # Determine filtered entity IDs based on filter type
         filtered_host_ids = None
         filtered_entity_ids = None
+        filtered_pgs = None
         
-        if filter_ids:
+        # Handle management zone filtering
+        if filter_type == 'management_zone' or management_zones:
+            if management_zones:
+                logger.info(f"Applying management zone filter: {management_zones}")
+                # Get process group instances directly filtered by management zone
+                filtered_pgs = self.api.getProcessGroupInstancesByMZ(management_zones)
+                logger.info(f"Found {len(filtered_pgs)} process group instances in management zones: {management_zones}")
+                # Build entity ID set for security problem filtering
+                filtered_entity_ids = set()
+                for pg in filtered_pgs:
+                    filtered_entity_ids.add(pg.get('entityId'))
+                    if 'fromRelationships' in pg and 'isInstanceOf' in pg['fromRelationships']:
+                        for parent in pg['fromRelationships']['isInstanceOf']:
+                            parent_pg_id = parent.get('id')
+                            if parent_pg_id:
+                                filtered_entity_ids.add(parent_pg_id)
+            else:
+                logger.warning("Management zone filter type specified but no management_zones provided. Collecting all data.")
+        elif filter_ids:
             logger.info(f"Applying {filter_type} filter with {len(filter_ids)} IDs: {filter_ids}")
             
             if filter_type == 'host':
@@ -187,8 +207,8 @@ class DataCollector:
                 logger.warning(f"Unsupported filter type: {filter_type}. Collecting all data.")
         
         data = {
-            'security_problems': self._collect_security_problems(filtered_entity_ids),
-            'process_groups': filtered_pgs if filter_type == 'process_group' and filter_ids else self._collect_process_groups(filtered_host_ids),
+            'security_problems': self._collect_security_problems(filtered_entity_ids, management_zones=management_zones if management_zones else None),
+            'process_groups': filtered_pgs if filtered_pgs is not None else self._collect_process_groups(filtered_host_ids),
             'hosts': self._collect_hosts(filtered_host_ids),
             'software_components': self._collect_software_components()
         }
@@ -378,15 +398,15 @@ class DataCollector:
             logger.warning(f"Failed to enrich security problem {sec_problem['securityProblemId']}: {e}")
             return sec_problem
     
-    def _collect_security_problems(self, filtered_entity_ids: set = None) -> List[Dict[str, Any]]:
+    def _collect_security_problems(self, filtered_entity_ids: set = None, management_zones: list = None) -> List[Dict[str, Any]]:
         """Collect all security problems with details (parallel processing).
         
         Args:
             filtered_entity_ids: Optional set of entity IDs to filter security problems by
+            management_zones: Optional list of management zone names to filter by (matched against enriched details)
         """
         logger.info("Collecting security problems...")
         
-        # Get all third-party security problems
         sec_problems = self.api.getThirdPartySecurityProblems()
         logger.info(f"Found {len(sec_problems)} security problems, fetching details in parallel...")
         
@@ -436,16 +456,39 @@ class DataCollector:
                         for entity_type, entities in related_entities.items():
                             if isinstance(entities, list):
                                 for entity in entities:
+                                    # Check main entity ID
                                     entity_id = entity.get('id', '') if isinstance(entity, dict) else entity
                                     if entity_id in filtered_entity_ids:
                                         logger.debug(f"Security problem {problem.get('securityProblemId')} matches via related entity: {entity_id}")
                                         filtered_problems.append(problem)
                                         break
+                                    
+                                    # ALSO check affectedEntities array (for PGIs inside hosts/services/etc)
+                                    if isinstance(entity, dict) and 'affectedEntities' in entity:
+                                        affected_entities = entity.get('affectedEntities', [])
+                                        for affected_entity_id in affected_entities:
+                                            if affected_entity_id in filtered_entity_ids:
+                                                logger.debug(f"Security problem {problem.get('securityProblemId')} matches via affected entity: {affected_entity_id}")
+                                                filtered_problems.append(problem)
+                                                break
+                                        # Exit if we found a match
+                                        if filtered_problems and filtered_problems[-1] == problem:
+                                            break
                             if filtered_problems and filtered_problems[-1] == problem:
                                 break
             
             logger.info(f"Filtered {len(enriched_problems)} problems down to {len(filtered_problems)} affecting specified entities")
-            return filtered_problems
+            enriched_problems = filtered_problems
+        
+        # Apply management zone filter using the managementZones field from enriched details
+        if management_zones:
+            mz_name_set = set(management_zones)
+            mz_filtered = [
+                p for p in enriched_problems
+                if any(mz.get('name') in mz_name_set for mz in p.get('managementZones', []))
+            ]
+            logger.info(f"Filtered {len(enriched_problems)} problems down to {len(mz_filtered)} in management zones: {management_zones}")
+            return mz_filtered
         
         logger.info(f"Successfully enriched {len(enriched_problems)} security problems")
         return enriched_problems
@@ -1216,7 +1259,7 @@ class JsonExporter:
                 'report_id': report_id,
                 'generated_at': timestamp.isoformat(),
                 'timeframe': self.config.get('assessment.timeframe'),
-                'risk_model': self.config.get('assessment.risk_model', 'CWRS'),
+                'risk_model': self.config.get('assessment.risk_model', 'HRP'),
                 'astra_version': '1.5.0',
                 'host_count': len(data.get('hosts', [])),
                 'tenant_url': self.config.get('dynatrace.environment', ''),
@@ -1324,7 +1367,7 @@ class PdfGenerator:
         
         # Basic info
         overall_risk = data['overall_risk']
-        risk_model = overall_risk.get('model', 'CWRS')
+        risk_model = overall_risk.get('model', 'HRP')
         scale_max = "10" if risk_model == 'REI' else "100"
         
         story.append(Paragraph(f"Risk Score: {overall_risk['score']}/{scale_max}", styles['Heading1']))

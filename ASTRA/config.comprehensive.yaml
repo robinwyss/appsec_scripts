@@ -186,6 +186,7 @@ filters:
   type: "process_group"
   
   # Specific entity IDs to include
+  # preferred approach.
   # Leave empty to include ALL entities of the specified type
   #
   # Example - Analyze specific process groups:
@@ -210,7 +211,7 @@ filters:
   #   management_zones: []
   management_zones: []
   
-  # Filter by Dynatrace tags
+  # Filter by Dynatrace tags still untested!
   # Leave empty to include ALL tagged entities
   #
   # Example - Only customer-facing applications:
@@ -220,51 +221,10 @@ filters:
   #     - "Criticality:High"
   #
   # Example - No tag filtering:
-  #   tags: []
+  #   tags: [] # tags filter untested...
   tags: []
 
 
-# ┌──────────────────────────────────────────────────────────────────────────────┐
-# │ RISK SCORING (LEGACY CWRS MODEL)                                            │
-# │                                                                              │
-# │ NOTE: This is the legacy scoring model. HRP v2.0 (above) is now the        │
-# │ primary risk metric. CWRS is maintained for backward compatibility.         │
-# │                                                                              │
-# │ CWRS = Comprehensive Weighted Risk Score                                    │
-# │ Weights MUST sum to 100                                                     │
-# └──────────────────────────────────────────────────────────────────────────────┘
-scoring:
-  # Vulnerability Severity Score (0-25 points)
-  # Based on Davis Security Score ranges from Dynatrace
-  vulnerability_weight: 25
-  
-  # Exploitability Factor (0-40 points)
-  # Public exploits, vulnerable function usage, network exposure
-  exploitability_weight: 40
-  
-  # Attack Complexity & Exposure (0-20 points)
-  # Library vulnerability ratio, network-exposed processes
-  exposure_weight: 20
-  
-  # System Criticality & Usage (0-15 points)
-  # Network listeners, external services, host count
-  criticality_weight: 15
-  
-  # ─────────────────────────────────────────────────────────────────────────────
-  # Alternative Weight Profiles:
-  # ─────────────────────────────────────────────────────────────────────────────
-  #
-  # Balanced Conservative (current):
-  #   vulnerability_weight: 25, exploitability_weight: 40
-  #   exposure_weight: 20, criticality_weight: 15
-  #
-  # Exploit-Focused (emphasizes active threats):
-  #   vulnerability_weight: 30, exploitability_weight: 35
-  #   exposure_weight: 20, criticality_weight: 15
-  #
-  # Severity-Focused (emphasizes CVSS scores):
-  #   vulnerability_weight: 40, exploitability_weight: 30
-  #   exposure_weight: 20, criticality_weight: 10
 
 
 # ┌──────────────────────────────────────────────────────────────────────────────┐

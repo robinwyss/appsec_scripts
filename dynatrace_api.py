@@ -153,7 +153,36 @@ class DynatraceApi:
         """
         return self.getAllEntitiesByIDs('/api/v2/entities?fields=toRelationships.isSoftwareComponentOfPgi,properties,fromRelationships.isProcessOf,fromRelationships.isInstanceOf&from='+timeframe, processes)
 
+    def getProcessGroupInstancesByMZ(self, management_zones: list):
+        """
+        Get all Process Group Instances belonging to the specified management zones.
+        :param management_zones: list of management zone names
+        :return list of process group instance entities (dictionary)
+        """
+        mz_selector = ','.join(f'mzName("{mz}")' for mz in management_zones)
+        endpoint = (f'/api/v2/entities?pageSize=500'
+                    f'&fields=toRelationships.isSoftwareComponentOfPgi,properties,fromRelationships.isProcessOf,fromRelationships.isInstanceOf'
+                    f'&entitySelector=type("PROCESS_GROUP_INSTANCE"),{mz_selector}'
+                    f'&from={timeframe}')
+        return self.getAllEntities(endpoint)
+
     #added mz to fields returned SRS
+    def getEntitiesByManagementZone(self, entityType, mzName):
+        """
+        Get entities of specific type filtered by management zone.
+        
+        :param str entityType: Entity type (e.g., 'PROCESS_GROUP_INSTANCE', 'HOST')
+        :param str mzName: Management zone name
+        :return list of entities (dictionary)
+        """
+        import urllib.parse
+        mz_encoded = urllib.parse.quote(mzName)
+        return self.getAllEntities(
+            f'/api/v2/entities?pageSize=500&'
+            f'entitySelector=type("{entityType}"),mzName("{mz_encoded}")&'
+            f'fields=+toRelationships,fromRelationships,managementZones,properties&from={timeframe}'
+        )
+    
     def getHosts(self):
         """
         Get all hosts with the relationships to processes (PGIs)

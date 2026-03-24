@@ -19,3 +19,4 @@ build/
 venv/
 ENV/
 .DS_Store
+config.example.yaml.old

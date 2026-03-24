@@ -13,3 +13,7 @@ production_promotion_check.log
 __pycache__/
 .vscode/
 .vscode
+config.yaml
+ASTRA/config.yaml
+ASTRA
+.env
