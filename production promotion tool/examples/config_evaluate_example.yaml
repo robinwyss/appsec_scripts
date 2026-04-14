@@ -1,0 +1,44 @@
+# Production Promotion GO/NO-GO Assessment Configuration
+# Mode: Evaluate (Standalone Assessment)
+#
+# This configuration evaluates a certification environment against security
+# criteria without comparing to production.
+
+# Assessment mode: 'evaluate' or 'compare'
+mode: evaluate
+
+# Performance Settings
+# Maximum number of concurrent API requests for fetching vulnerability details
+# Higher values = faster execution but more API load
+# Recommended: 10-20 (default: 10)
+max_workers: 10
+
+# Certification Environment Configuration
+certification_environment:
+  # Dynatrace tenant URL (include https://)
+  url: "https://abc12345.live.dynatrace.com"
+  
+  # Dynatrace API token with required permissions:
+  # - Read security problems (securityProblems.read)
+  # - Read entities (entities.read)
+  token: "dt0c01.XXXXXXXXXXXXXXXXXXXXXXXX.YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
+  
+  # SSL certificate verification (optional, default: true)
+  verify_ssl: true
+  
+  # Scope mode: 'management_zone' or 'host_list'
+  scope_mode: management_zone
+  
+  # Management zones to assess (used when scope_mode: management_zone)
+  # List all management zones you want to include in the assessment
+  management_zones:
+    - "Certification - Web Application"
+    - "Certification - API Services"
+    - "Certification - Database"
+  
+  # Host list (used when scope_mode: host_list)
+  # Uncomment and specify host IDs if using host_list mode
+  # hosts:
+  #   - "HOST-1234567890ABCDEF"
+  #   - "HOST-FEDCBA0987654321"
+  #   - "HOST-AABBCCDDEEFF1122"

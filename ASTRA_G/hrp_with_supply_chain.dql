@@ -1,0 +1,64 @@
+// HRPv2 Score with Integrated Supply Chain Calculation
+// Strategy: Get vulnerabilities first, then enrich with supply chain data per PGI
+
+fetch security.events
+| filter event.kind=="SECURITY_EVENT"
+| filter event.type=="VULNERABILITY_STATE_REPORT_EVENT"
+| filter event.level=="ENTITY"
+| filter vulnerability.resolution.status == "OPEN" and vulnerability.mute.status == "NOT_MUTED"
+| dedup vulnerability.id, affected_entity.id
+// Apply PGI and Tag filters
+| expand pid=affected_entity.affected_processes.ids
+| lookup [
+    fetch dt.entity.process_group_instance
+    | fields process_id=id, process_name=entity.name, host_id=belongs_to[dt.entity.host]
+    // Get supply chain data for each PGI
+    | expand sw=contains[dt.entity.software_component]
+    | lookup [
+        fetch dt.entity.software_component 
+        | fields id, packageName, softwareComponentVersion
+      ], sourceField:sw, lookupField:id, fields:{packageName, softwareComponentVersion}
+    | fieldsAdd pkg_name=if(contains(packageName, "#"), splitString(packageName, "#")[0], else:packageName)
+    | dedup pkg_name, softwareComponentVersion, by:{process_id}
+    | summarize pgi_total_packages=count(), by:{process_id}
+    | lookup [ fetch dt.entity.host | fieldsAdd tags], sourceField:host_id, lookupField:id, fields:{host_name=entity.name,host_tags=tags}
+  ], sourceField:pid, lookupField:process_id, fields:{process_id,process_name,pgi_total_packages,host_id,host_name,host_tags}
+| filter ($Process_Group_Instance == "All" or process_name == $Process_Group_Instance)
+| filter ($Tag_Filter == "OFF") or ($Tag_Filter == "ON" and in(concat($Tag_Key, ":", $Tag_Value), host_tags))
+// Apply severity filter
+| fieldsAdd severity=vulnerability.davis_assessment.level
+| filter in(severity, $Severity) or in("All", $Severity)
+// Component 1: Vulnerability Score
+| fieldsAdd vuln_weight=if(severity=="CRITICAL", 10.0, 
+    else:if(severity=="HIGH", 7.5, 
+    else:if(severity=="MEDIUM", 4.0, else:1.5)))
+| fieldsAdd has_exploit=if(vulnerability.davis_assessment.exploit_status=="AVAILABLE", 3.0, else:1.0)
+| fieldsAdd has_cve=if(isNotNull(vulnerability.references.cve), 2.2, else:1.0)
+| fieldsAdd vuln_contribution=vuln_weight * has_exploit * has_cve
+// Summarize
+| summarize 
+    vuln_sum=sum(vuln_contribution),
+    vuln_count=count(),
+    unique_vuln_packages=countDistinctExact(affected_entity.vulnerable_component.name),
+    total_packages=sum(pgi_total_packages),
+    unique_entities=sum(related_entities.applications.count)+sum(related_entities.databases.count)+sum(related_entities.hosts.count)+sum(related_entities.services.count)+sum(affected_entity.reachable_data_assets.count),
+    oldest_vuln=min(vulnerability.first_seen)
+// Calculate component scores
+| fieldsAdd vuln_score_raw=100 * sqrt(vuln_sum) / sqrt(500)
+| fieldsAdd vuln_score=if(vuln_score_raw > 100, 100, else:vuln_score_raw)
+| fieldsAdd supply_score=100 * sqrt(unique_vuln_packages / if(total_packages > 0, total_packages, else:100))
+| fieldsAdd topology_score=100 * (1 - exp(-0.05 * unique_entities))
+| fieldsAdd age_days=(now() - oldest_vuln) / (1000 * 60 * 60 * 24)
+| fieldsAdd aging_score=if(age_days > 0, (age_days / 365) * 20, else:0)
+// Calculate HRPv2 Score
+| fieldsAdd hrp_score=(0.60 * vuln_score) + 
+                      (0.20 * supply_score) + 
+                      (0.15 * topology_score) + 
+                      (0.05 * aging_score)
+| fields `HRPv2 Score`=round(hrp_score, decimals:2), 
+        `Vuln Score`=round(vuln_score, decimals:2),
+        `Supply Score`=round(supply_score, decimals:2),
+        `Topology Score`=round(topology_score, decimals:2),
+        `Aging Score`=round(aging_score, decimals:2),
+        `Vulnerable Packages`=unique_vuln_packages,
+        `Total Packages`=total_packages

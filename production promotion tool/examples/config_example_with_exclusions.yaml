@@ -1,0 +1,113 @@
+# Production Promotion GO/NO-GO Assessment Configuration
+# Example configuration showing all available exclusion and threshold options
+
+# Assessment mode: 'evaluate' or 'compare'
+mode: compare
+
+# Performance Settings
+max_workers: 20  # Concurrent API requests (10-20 recommended)
+
+# Assessment Rules Configuration
+# Fine-tune which checks apply to which severity levels
+assessment_rules:
+  # Exclude specific CVEs from all assessments
+  # Use this for false positives, accepted risks, or vulnerabilities with compensating controls
+  excluded_cves:
+    - "CVE-2023-44487"  # Example: Known false positive in test environment
+    - "CVE-2024-12345"  # Example: Risk accepted by security team with documented justification
+  
+  # Configure which checks to skip for specific severity levels
+  # Available checks: 'vulnerable_function', 'severity_regression', 'new_vulnerabilities'
+  # Available severities: 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'NONE'
+  severity_exclusions:
+    # Example: Skip vulnerable function checks for MEDIUM and LOW severity
+    # This allows MEDIUM/LOW vulnerabilities even if vulnerable functions are in use
+    MEDIUM:
+      - vulnerable_function
+    LOW:
+      - vulnerable_function
+      - severity_regression
+    
+    # You can also exclude specific checks for higher severities if needed
+    # HIGH:
+    #   - severity_regression  # Don't fail on HIGH severity regressions
+  
+  # Thresholds for GO/NO-GO decision
+  thresholds:
+    # Block promotion if vulnerabilities at or above this severity exist
+    # Options: 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'NONE'
+    # Default: 'HIGH' (blocks on CRITICAL and HIGH)
+    max_allowed_severity: HIGH
+    
+    # Maximum number of new vulnerabilities allowed (compare mode only)
+    # Set to -1 for unlimited (no limit on new vulnerabilities)
+    # Set to 0 to block any new vulnerabilities
+    # Set to a positive number to allow that many new vulnerabilities
+    max_new_vulnerabilities: -1
+    
+    # Allow promotion with vulnerable functions in use for these severities
+    # Example: ['LOW', 'MEDIUM'] - allows LOW and MEDIUM vulnerabilities with functions in use
+    # Empty list means vulnerable functions in use will block promotion at any severity
+    allow_vulnerable_function_for_severities: []
+
+# Certification Environment Configuration
+certification_environment:
+  url: "https://your-cert-tenant.live.dynatrace.com"
+  token: "dt0c01.YOUR_CERT_TOKEN_HERE"
+  verify_ssl: true
+  
+  # Scope mode: 'management_zone' or 'host_list'
+  scope_mode: management_zone
+  
+  # Management zones to assess (used when scope_mode: management_zone)
+  management_zones:
+    - "Certification - Web Application"
+    - "Certification - API Services"
+  
+  # Host list (used when scope_mode: host_list)
+  # hosts:
+  #   - "HOST-XXXXXXXXXXXXXX"
+  #   - "HOST-YYYYYYYYYYYYYY"
+
+# Production Environment Configuration (required for compare mode)
+production_environment:
+  url: "https://your-prod-tenant.live.dynatrace.com"
+  token: "dt0c01.YOUR_PROD_TOKEN_HERE"
+  verify_ssl: true
+  
+  scope_mode: management_zone
+  
+  # Management zones for production (should correspond to cert environment)
+  management_zones:
+    - "Production - Web Application"
+    - "Production - API Services"
+  
+  # Alternative: Host list mode
+  # scope_mode: host_list
+  # hosts:
+  #   - "HOST-XXXXXXXXXXXXXX"
+
+
+# Common Configuration Scenarios:
+# 
+# 1. Strict Security (default):
+#    - No excluded CVEs
+#    - No severity exclusions
+#    - Block on CRITICAL and HIGH
+#    - No vulnerable functions in use allowed
+#
+# 2. Relaxed for Lower Severities:
+#    - Exclude vulnerable_function check for MEDIUM and LOW
+#    - max_allowed_severity: HIGH
+#    - allow_vulnerable_function_for_severities: ['LOW', 'MEDIUM']
+#
+# 3. Development/Testing Environment:
+#    - max_allowed_severity: MEDIUM (allows HIGH if needed)
+#    - More exclusions for known test environment issues
+#    - max_new_vulnerabilities: 10 (allows some new vulnerabilities)
+#
+# 4. Production-Ready (Recommended):
+#    - Minimal excluded CVEs (only documented exceptions)
+#    - max_allowed_severity: HIGH
+#    - Exclude vulnerable_function for MEDIUM only
+#    - max_new_vulnerabilities: -1 (unlimited, but track regressions)

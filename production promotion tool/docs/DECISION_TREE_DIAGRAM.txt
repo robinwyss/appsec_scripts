@@ -1,0 +1,411 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                  PRODUCTION PROMOTION GO/NO-GO DECISION TREE                  ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+                              ┌───────────────────┐
+                              │  START ASSESSMENT │
+                              └────────┬──────────┘
+                                       │
+                                       ▼
+                        ┌──────────────────────────────┐
+                        │  Load Configuration (YAML)   │
+                        │  - Mode: Evaluate or Compare │
+                        │  - Scope: MZ or Host List    │
+                        └──────────────┬───────────────┘
+                                       │
+                                       ▼
+                        ┌──────────────────────────────┐
+                        │ Fetch Certification Vulns    │
+                        │ (Filtered by MZ/Host List)   │
+                        └──────────────┬───────────────┘
+                                       │
+                                       ▼
+                        ┌──────────────────────────────┐
+                        │ Check CRITICAL/HIGH Severity │
+                        │ in Certification?            │
+                        └──────┬───────────────┬───────┘
+                               │ YES           │ NO
+                               │               │
+                      ┌────────▼─────┐         │
+                      │   NO-GO ✗    │         │
+                      │ (Critical/   │         │
+                      │  High Found) │         │
+                      └──────────────┘         │
+                                               ▼
+                                ┌──────────────────────────────┐
+                                │ Check Vulnerable Functions   │
+                                │ - IN_USE?                    │
+                                │ - NOT_AVAILABLE (uncertain)? │
+                                └──────┬───────────────┬───────┘
+                                       │ YES           │ NO
+                                       │               │
+                              ┌────────▼─────┐         │
+                              │   NO-GO ✗    │         │
+                              │ (Vuln Func   │         │
+                              │  Issues)     │         │
+                              └──────────────┘         │
+                                                       │
+                                                       ▼
+                                        ┌──────────────────────┐
+                                        │  Check Mode?         │
+                                        └──┬────────────────┬──┘
+                                    EVALUATE │            │ COMPARE
+                                             │            │
+                              ┌──────────────▼──┐         │
+                              │    GO ✓         │         │
+                              │ (All Checks     │         │
+                              │  Passed)        │         │
+                              └─────────────────┘         │
+                                                          ▼
+                                          ┌──────────────────────────────┐
+                                          │ Fetch Production Vulns       │
+                                          │ (Filtered by MZ/Host List)   │
+                                          └──────────────┬───────────────┘
+                                                         │
+                                                         ▼
+                                          ┌──────────────────────────────┐
+                                          │ COMPARATIVE ANALYSIS         │
+                                          │                              │
+                                          │ 1. New CVEs Introduced?      │
+                                          │    (Cert CVEs - Prod CVEs)   │
+                                          │                              │
+                                          │ 2. Severity Regression?      │
+                                          │    Per-PGI Check:            │
+                                          │    Same entity, same CVE,    │
+                                          │    higher severity in cert?  │
+                                          │                              │
+                                          │ 3. Vuln Function Regression? │
+                                          │    Per-PGI Check:            │
+                                          │    Same entity, same CVE,    │
+                                          │    NOT_IN_USE → IN_USE?      │
+                                          └──────────────┬───────────────┘
+                                                         │
+                                                         ▼
+                                          ┌──────────────────────────────┐
+                                          │ Any Regression Detected?     │
+                                          │ - New CVEs > 0?              │
+                                          │ - Severity regression?       │
+                                          │ - Vuln func regression?      │
+                                          └──────┬───────────────┬───────┘
+                                                 │ YES           │ NO
+                                                 │               │
+                                        ┌────────▼─────┐         │
+                                        │   NO-GO ✗    │         │
+                                        │ (Regression  │         │
+                                        │  Detected)   │         │
+                                        └──────────────┘         │
+                                                                 ▼
+                                                      ┌─────────────────┐
+                                                      │     GO ✓        │
+                                                      │ (All Checks     │
+                                                      │  Passed)        │
+                                                      └─────────────────┘
+
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                              DECISION CRITERIA                                ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ✓ GO DECISION (Exit Code: 0)                                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ EVALUATE MODE:                                                               │
+│   ✓ No CRITICAL or HIGH severity vulnerabilities                            │
+│   ✓ No vulnerabilities with vulnerable functions IN_USE                     │
+│   ✓ All vulnerable function usage is assessable (not NOT_AVAILABLE)         │
+│                                                                              │
+│ COMPARE MODE (All of Evaluate + Additional):                                │
+│   ✓ No new CVEs introduced compared to production                           │
+│   ✓ No severity regression per PGI/entity                                   │
+│   ✓ No vulnerable function regression per PGI/entity                        │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ✗ NO-GO DECISION (Exit Code: 1)                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ EVALUATE MODE:                                                               │
+│   ✗ ANY CRITICAL or HIGH severity vulnerabilities found                     │
+│   ✗ ANY vulnerability with vulnerable function IN_USE                       │
+│   ✗ ANY vulnerability where function usage is NOT_AVAILABLE                 │
+│                                                                              │
+│ COMPARE MODE (Any of Evaluate OR Additional):                               │
+│   ✗ New CVEs introduced compared to production                              │
+│   ✗ Severity regression detected:                                           │
+│      - Same CVE on same entity has higher severity in cert than prod        │
+│   ✗ Vulnerable function regression detected:                                │
+│      - Same CVE on same entity: NOT_IN_USE (prod) → IN_USE (cert)           │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                         PER-PGI REGRESSION LOGIC                              ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+SEVERITY REGRESSION EXAMPLE:
+┌────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  CVE-2024-12345 Comparison:                                                 │
+│                                                                             │
+│  Production Environment:                                                    │
+│    ├─ PGI-ABC123 (MyApp-Service)    : MEDIUM ──┐                           │
+│    ├─ PGI-DEF456 (API-Gateway)      : LOW      │                           │
+│    └─ PGI-GHI789 (Database-Proxy)   : HIGH     │                           │
+│                                                 │                           │
+│  Certification Environment:              Compare Same Entity                │
+│    ├─ PGI-ABC123 (MyApp-Service)    : HIGH  ───┘  ✗ REGRESSION!            │
+│    ├─ PGI-DEF456 (API-Gateway)      : LOW         ✓ No Change              │
+│    ├─ PGI-GHI789 (Database-Proxy)   : HIGH        ✓ No Change              │
+│    └─ PGI-JKL012 (New-Service)      : CRITICAL    ➜ NEW (not regression)   │
+│                                                                             │
+│  Result: REGRESSION detected on PGI-ABC123 (MEDIUM → HIGH)                 │
+│  Decision: NO-GO ✗                                                          │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+VULNERABLE FUNCTION REGRESSION EXAMPLE:
+┌────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  CVE-2024-67890 Comparison:                                                 │
+│                                                                             │
+│  Production Environment:                                                    │
+│    ├─ PGI-ABC123 (MyApp-Service)    : NOT_IN_USE ──┐                       │
+│    └─ PGI-DEF456 (API-Gateway)      : IN_USE       │                       │
+│                                                     │                       │
+│  Certification Environment:                  Compare Same Entity            │
+│    ├─ PGI-ABC123 (MyApp-Service)    : IN_USE ──────┘  ✗ REGRESSION!        │
+│    └─ PGI-DEF456 (API-Gateway)      : IN_USE             ✓ No Change       │
+│                                                                             │
+│  Result: REGRESSION detected on PGI-ABC123 (NOT_IN_USE → IN_USE)           │
+│  Decision: NO-GO ✗                                                          │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                            SCOPE FILTERING                                    ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+Management Zone Mode:
+┌────────────────────────────────────────────────────────────────────────────┐
+│  Config: management_zones: ["Cert-App", "Cert-API"]                        │
+│                                                                             │
+│  Process:                                                                   │
+│    1. Fetch all security problems from Dynatrace                            │
+│    2. Get details for each security problem                                 │
+│    3. Filter: Keep only problems in "Cert-App" or "Cert-API" MZ            │
+│    4. Extract affected entities (PGIs, Hosts) within those MZs              │
+│    5. Perform regression checks on filtered entities                        │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+Host List Mode:
+┌────────────────────────────────────────────────────────────────────────────┐
+│  Config: hosts: ["HOST-ABC123", "HOST-DEF456"]                             │
+│                                                                             │
+│  Process:                                                                   │
+│    1. For each specified host ID                                            │
+│    2. Fetch all security problems affecting that host                       │
+│    3. Extract affected entities (PGIs on those hosts)                       │
+│    4. Perform regression checks on filtered entities                        │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                           OUTPUT & EXIT CODES                                 ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+Exit Code 0 (GO):
+┌────────────────────────────────────────────────────────────────────────────┐
+│  Console Output:                                                            │
+│    ============================================================             │
+│    DECISION: GO ✓                                                           │
+│    ============================================================             │
+│                                                                             │
+│    ✓ GO Decision: The certification environment meets all criteria         │
+│      for production promotion.                                              │
+│      All security checks passed successfully.                               │
+│                                                                             │
+│  Report Generated: report_20251204_143000.json                              │
+│                                                                             │
+│  Machine-Readable (-m flag): "GO"                                           │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+Exit Code 1 (NO-GO):
+┌────────────────────────────────────────────────────────────────────────────┐
+│  Console Output:                                                            │
+│    ============================================================             │
+│    DECISION: NO-GO ✗                                                        │
+│    ============================================================             │
+│                                                                             │
+│    ✗ NO-GO Decision: The certification environment does not meet           │
+│      criteria for production promotion.                                     │
+│      Reasons:                                                               │
+│        - Found 3 CRITICAL or HIGH severity vulnerabilities                 │
+│        - Introduced 2 new vulnerabilities compared to production            │
+│        - Detected severity regression compared to production                │
+│                                                                             │
+│  Report Generated: report_20251204_143000.json                              │
+│                                                                             │
+│  Machine-Readable (-m flag): "NO-GO"                                        │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+Exit Code 2 (ERROR):
+┌────────────────────────────────────────────────────────────────────────────┐
+│  Examples:                                                                  │
+│    - Configuration file not found                                           │
+│    - Invalid YAML syntax                                                    │
+│    - API authentication failure                                             │
+│    - Network connectivity issues                                            │
+│    - Invalid API token permissions                                          │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                              ALGORITHM FLOW                                   ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ Step 1: INITIALIZATION                                                        │
+├───────────────────────────────────────────────────────────────────────────────┤
+│   • Load YAML configuration                                                   │
+│   • Validate mode (evaluate/compare)                                          │
+│   • Initialize Dynatrace API client(s)                                        │
+│   • Setup logging                                                             │
+└───────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ Step 2: FETCH CERTIFICATION VULNERABILITIES                                   │
+├───────────────────────────────────────────────────────────────────────────────┤
+│   • Call Dynatrace API getSecurityProblems()                                  │
+│   • Filter by Management Zone OR Host List (per config)                       │
+│   • Enrich with details: getSecurityProblemDetails()                          │
+│   • Extract affected entities (PGIs, Hosts)                                   │
+│   • Store with risk assessment & vulnerable function data                     │
+└───────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ Step 3: CERTIFICATION CHECKS                                                  │
+├───────────────────────────────────────────────────────────────────────────────┤
+│   CHECK A: Count CRITICAL/HIGH severity vulnerabilities                       │
+│            → If count > 0: Flag for NO-GO                                     │
+│                                                                               │
+│   CHECK B: Check vulnerable function usage                                    │
+│            → If ANY vuln has IN_USE: Flag for NO-GO                           │
+│            → If ANY vuln has NOT_AVAILABLE: Flag for NO-GO                    │
+│                                                                               │
+│   Display: Colored vulnerability digest with scores                           │
+└───────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+                           ┌──────────────────────┐
+                           │ Mode = EVALUATE?     │
+                           └──┬────────────────┬──┘
+                        YES   │                │ NO (COMPARE)
+                              │                │
+            ┌─────────────────▼──┐             │
+            │ Step 4a: DECISION  │             │
+            ├────────────────────┤             │
+            │ IF no flags:       │             │
+            │   → GO ✓           │             │
+            │ ELSE:              │             │
+            │   → NO-GO ✗        │             │
+            │                    │             │
+            │ Generate report    │             │
+            │ Exit with code     │             │
+            └────────────────────┘             │
+                                               ▼
+                      ┌────────────────────────────────────────────────┐
+                      │ Step 4b: FETCH PRODUCTION VULNERABILITIES      │
+                      ├────────────────────────────────────────────────┤
+                      │   • Call Dynatrace API for prod environment    │
+                      │   • Filter by Management Zone OR Host List     │
+                      │   • Enrich with details                        │
+                      │   • Extract affected entities                  │
+                      └────────────────┬───────────────────────────────┘
+                                       │
+                                       ▼
+                      ┌────────────────────────────────────────────────┐
+                      │ Step 5: COMPARATIVE ANALYSIS                   │
+                      ├────────────────────────────────────────────────┤
+                      │ CHECK C: New CVEs                              │
+                      │   cert_cves - prod_cves                        │
+                      │   → If > 0: Flag for NO-GO                     │
+                      │                                                │
+                      │ CHECK D: Severity Regression (Per-PGI)         │
+                      │   For each common CVE:                         │
+                      │     For each entity in cert:                   │
+                      │       If entity exists in prod:                │
+                      │         Compare severity levels                │
+                      │         If cert_severity > prod_severity:      │
+                      │           → Flag for NO-GO                     │
+                      │           → Log regression details             │
+                      │                                                │
+                      │ CHECK E: Vuln Function Regression (Per-PGI)    │
+                      │   For each common CVE:                         │
+                      │     For each entity in cert:                   │
+                      │       If entity exists in prod:                │
+                      │         Compare function usage                 │
+                      │         If prod=NOT_IN_USE && cert=IN_USE:     │
+                      │           → Flag for NO-GO                     │
+                      │           → Log regression details             │
+                      └────────────────┬───────────────────────────────┘
+                                       │
+                                       ▼
+                      ┌────────────────────────────────────────────────┐
+                      │ Step 6: FINAL DECISION                         │
+                      ├────────────────────────────────────────────────┤
+                      │ Aggregate all flags:                           │
+                      │   • Cert CRITICAL/HIGH check                   │
+                      │   • Cert vuln function check                   │
+                      │   • New CVEs check                             │
+                      │   • Severity regression check                  │
+                      │   • Vuln function regression check             │
+                      │                                                │
+                      │ IF any flag set:                               │
+                      │   → NO-GO ✗ (Exit 1)                           │
+                      │ ELSE:                                          │
+                      │   → GO ✓ (Exit 0)                              │
+                      │                                                │
+                      │ Generate detailed report (JSON/CSV)            │
+                      │ Display decision with reasoning                │
+                      └────────────────────────────────────────────────┘
+
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                            KEY CONCEPTS                                       ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+Entity-Aware Comparison:
+  • Vulnerabilities are compared at the entity level (PGI, Host, etc.)
+  • Same CVE can have different characteristics per entity
+  • Regression only flagged when SAME entity shows worsening
+
+Scope Respect:
+  • Only entities within configured MZs or Host Lists are evaluated
+  • Out-of-scope entities are ignored
+  • Ensures assessment matches deployment scope
+
+Conservative Decision:
+  • ANY negative condition triggers NO-GO
+  • Uncertainty (NOT_AVAILABLE) treated as blocker
+  • Better to delay than deploy with unknown risks
+
+Detailed Reporting:
+  • All regression details captured with entity information
+  • JSON reports include full vulnerability metadata
+  • CSV reports flatten for spreadsheet analysis
+  • Logs provide audit trail
+
+═══════════════════════════════════════════════════════════════════════════════
+                              END OF DECISION TREE
+═══════════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,87 @@
+# Production Promotion GO/NO-GO Assessment Configuration
+# Mode: Compare (Comparative Assessment)
+#
+# This configuration compares certification environment against production
+# to detect regressions and new vulnerabilities.
+
+# Assessment mode: 'evaluate' or 'compare'
+mode: compare
+
+# Performance Settings
+# Maximum number of concurrent API requests for fetching vulnerability details
+# Higher values = faster execution but more API load
+# Recommended: 10-20 (default: 10)
+max_workers: 10
+
+# Certification Environment Configuration
+certification_environment:
+  # Dynatrace tenant URL for certification environment
+  url: "https://cert-tenant.live.dynatrace.com"
+  
+  # Dynatrace API token for certification environment
+  # Required permissions:
+  # - Read security problems (securityProblems.read)
+  # - Read entities (entities.read)
+  token: "dt0c01.CERT_TOKEN_XXXXXXXXXXXXXXXX.YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
+  
+  # SSL certificate verification (optional, default: true)
+  verify_ssl: true
+  
+  # Scope mode: 'management_zone' or 'host_list'
+  scope_mode: management_zone
+  
+  # Management zones for certification environment
+  management_zones:
+    - "Certification - Web Application"
+    - "Certification - API Services"
+    - "Certification - Database"
+  
+  # Alternative: Use host list instead of management zones
+  # Uncomment to use host_list mode
+  # scope_mode: host_list
+  # hosts:
+  #   - "HOST-CERT1234567890AB"
+  #   - "HOST-CERTFEDCBA098765"
+
+# Production Environment Configuration
+production_environment:
+  # Dynatrace tenant URL for production environment
+  # Can be the same tenant as certification or different
+  url: "https://prod-tenant.live.dynatrace.com"
+  
+  # Dynatrace API token for production environment
+  # Required permissions:
+  # - Read security problems (securityProblems.read)
+  # - Read entities (entities.read)
+  token: "dt0c01.PROD_TOKEN_XXXXXXXXXXXXXXXX.YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
+  
+  # SSL certificate verification (optional, default: true)
+  verify_ssl: true
+  
+  # Scope mode: 'management_zone' or 'host_list'
+  scope_mode: management_zone
+  
+  # Management zones for production environment
+  # These should correspond to the same application in production
+  management_zones:
+    - "Production - Web Application"
+    - "Production - API Services"
+    - "Production - Database"
+  
+  # Alternative: Use host list instead of management zones
+  # Uncomment to use host_list mode
+  # scope_mode: host_list
+  # hosts:
+  #   - "HOST-PROD1234567890AB"
+  #   - "HOST-PRODFEDCBA098765"
+
+# Example: Mixed scope modes (certification uses MZ, production uses hosts)
+# This is useful when environments are structured differently
+#
+# certification_environment:
+#   scope_mode: management_zone
+#   management_zones: ["Cert - App"]
+#
+# production_environment:
+#   scope_mode: host_list
+#   hosts: ["HOST-PROD123", "HOST-PROD456"]

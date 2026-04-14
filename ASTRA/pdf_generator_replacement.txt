@@ -1,0 +1,77 @@
+class PdfGenerator:
+    """Wrapper for beautiful PDF report generation."""
+    
+    def __init__(self, config: AstraConfig):
+        self.config = config
+        
+    def generate(self, json_file: str) -> str:
+        """Generate beautiful PDF report from JSON data."""
+        if not REPORTLAB_AVAILABLE:
+            logger.warning("reportlab library not installed. Install with: pip install reportlab")
+            logger.info("Skipping PDF generation, JSON report is available")
+            return ""
+        
+        # Import and use the beautiful PDF generator
+        try:
+            from pdf_generator_beautiful import BeautifulPDFGenerator
+            generator = BeautifulPDFGenerator(self.config)
+            pdf_file = generator.generate(json_file)
+            logger.info(f"Generated beautiful PDF report: {pdf_file}")
+            return pdf_file
+        except ImportError as e:
+            logger.error(f"Failed to import beautiful PDF generator: {e}")
+            logger.info("Falling back to basic PDF generation")
+            return self._generate_basic_pdf(json_file)
+        except Exception as e:
+            logger.error(f"Failed to generate beautiful PDF: {e}", exc_info=True)
+            logger.info("Falling back to basic PDF generation")
+            return self._generate_basic_pdf(json_file)
+    
+    def _generate_basic_pdf(self, json_file: str) -> str:
+        """Fallback: Generate basic PDF if beautiful generator fails."""
+        import json
+        from pathlib import Path
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib import colors
+        
+        # Load JSON data
+        with open(json_file, 'r') as f:
+            data = json.load(f)
+        
+        # Create output
+        output_path = Path(self.config.get('output.pdf_path', './reports'))
+        output_path.mkdir(parents=True, exist_ok=True)
+        report_id = data['metadata']['report_id']
+        pdf_file = output_path / f"{report_id}_basic.pdf"
+        
+        doc = SimpleDocTemplate(str(pdf_file), pagesize=A4)
+        story = []
+        styles = getSampleStyleSheet()
+        
+        # Simple title
+        story.append(Paragraph("ASTRA Risk Assessment Report", styles['Title']))
+        story.append(Spacer(1, 0.5*inch))
+        
+        # Basic info
+        overall_risk = data['overall_risk']
+        risk_model = overall_risk.get('model', 'CWRS')
+        scale_max = "10" if risk_model == 'REI' else "100"
+        
+        story.append(Paragraph(f"Risk Score: {overall_risk['score']}/{scale_max}", styles['Heading1']))
+        story.append(Paragraph(f"Rating: {overall_risk['rating']}", styles['Normal']))
+        story.append(Spacer(1, 0.3*inch))
+        
+        # Summary
+        summary = data['summary']
+        story.append(Paragraph(f"Total Vulnerabilities: {summary['total_vulnerabilities']}", styles['Normal']))
+        story.append(Paragraph(f"Total Entities: {summary['total_entities']}", styles['Normal']))
+        story.append(Paragraph(f"High Risk Entities: {summary['high_risk_entities']}", styles['Normal']))
+        
+        doc.build(story)
+        logger.info(f"Generated basic PDF report: {pdf_file}")
+        return str(pdf_file)
+
+

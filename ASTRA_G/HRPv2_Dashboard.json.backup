@@ -1,0 +1,432 @@
+{
+  "version": 20,
+  "dashboardMetadata": {
+    "name": "HRPv2 - Holistic Risk Posture Dashboard",
+    "owner": "ASTRA Assessment",
+    "tags": ["security", "vulnerability", "risk-assessment", "hrpv2"]
+  },
+  "variables": [
+    {
+      "version": 2,
+      "key": "Process_Group_Instance",
+      "type": "query",
+      "visible": true,
+      "editable": true,
+      "input": "fetch dt.entity.process_group_instance\n| fields entity.name = array(\"All\", entity.name)\n| sort entity.name asc",
+      "multiple": false,
+      "defaultValue": "All"
+    },
+    {
+      "version": 2,
+      "key": "Tag_Key",
+      "type": "query",
+      "visible": true,
+      "editable": true,
+      "input": "fetch dt.entity.process_group_instance\n| filter entity.name == $Process_Group_Instance or $Process_Group_Instance == \"All\"\n| expand tags, alias:tag\n| parse tag, \"\"\"LD:key  (!<<'\\\\' ':') LD:value \"\"\"\n| fields key = array(\"All\", key)\n| dedup key",
+      "multiple": false,
+      "defaultValue": "All"
+    },
+    {
+      "version": 2,
+      "key": "Tag_Value",
+      "type": "query",
+      "visible": true,
+      "editable": true,
+      "input": "fetch dt.entity.process_group_instance\n| filter entity.name == $Process_Group_Instance or $Process_Group_Instance == \"All\"\n| expand tags, alias:tag\n| parse tag, \"\"\"LD:key  (!<<'\\\\' ':') LD:value \"\"\"\n| filter key == $Tag_Key or $Tag_Key == \"All\"\n| fields value = array(\"All\", value)\n| dedup value",
+      "multiple": false,
+      "defaultValue": "All"
+    },
+    {
+      "version": 2,
+      "key": "Tag_Filter",
+      "type": "csv",
+      "visible": true,
+      "editable": true,
+      "input": "ON,OFF",
+      "multiple": false,
+      "defaultValue": "OFF"
+    },
+    {
+      "version": 2,
+      "key": "Severity",
+      "type": "csv",
+      "visible": true,
+      "editable": true,
+      "input": "CRITICAL,HIGH,MEDIUM,LOW,All",
+      "multiple": true,
+      "defaultValue": ["All"]
+    },
+    {
+      "version": 2,
+      "key": "Timeframe",
+      "type": "text",
+      "visible": true,
+      "editable": true,
+      "defaultValue": "now-30d"
+    },
+    {
+      "version": 2,
+      "key": "HRP_Vuln_Weight",
+      "type": "text",
+      "visible": true,
+      "editable": true,
+      "defaultValue": "0.60"
+    },
+    {
+      "version": 2,
+      "key": "HRP_Supply_Weight",
+      "type": "text",
+      "visible": true,
+      "editable": true,
+      "defaultValue": "0.20"
+    },
+    {
+      "version": 2,
+      "key": "HRP_Topology_Weight",
+      "type": "text",
+      "visible": true,
+      "editable": true,
+      "defaultValue": "0.15"
+    },
+    {
+      "version": 2,
+      "key": "HRP_Aging_Weight",
+      "type": "text",
+      "visible": true,
+      "editable": true,
+      "defaultValue": "0.05"
+    },
+    {
+      "version": 2,
+      "key": "Dampening_Exponent",
+      "type": "text",
+      "visible": true,
+      "editable": true,
+      "defaultValue": "0.75"
+    },
+    {
+      "version": 2,
+      "key": "Environment_URL",
+      "type": "text",
+      "visible": false,
+      "editable": true,
+      "defaultValue": "https://demo.apps.dynatrace.com/"
+    }
+  ],
+  "tiles": {
+    "header": {
+      "type": "markdown",
+      "content": "# HRPv2 - Holistic Risk Posture Dashboard\n\n**Filters Active:** Tag Filter = $Tag_Filter | PGI = $Process_Group_Instance | Tag = $Tag_Key:$Tag_Value | Severity = $Severity\n\n**HRP Weights:** Vulnerability=${HRP_Vuln_Weight} | Supply Chain=${HRP_Supply_Weight} | Topology=${HRP_Topology_Weight} | Aging=${HRP_Aging_Weight}\n\n---\n\n### What is HRPv2?\nHRP v2.0 measures **Potential Business Impact from Security Exposure** by quantifying:\n- **60% Vulnerabilities**: How easy to exploit? (CVE IDs, public exploits, high severity)\n- **20% Supply Chain**: How widespread is the weakness? (% of vulnerable libraries)\n- **15% Topology**: How much damage if breached? (blast radius, interconnectivity)\n- **5% Aging**: How long have we been exposed? (time since first detection)\n\n**Scale:** 0-100 (0=No Risk, 100=Critical Risk)"
+    },
+    "hrp_overall_score": {
+      "title": "HRPv2 Overall Risk Score",
+      "type": "data",
+      "query": "fetch security.events\n| filter event.kind==\"SECURITY_EVENT\"\n| filter event.category==\"VULNERABILITY_MANAGEMENT\"\n| filter event.provider==\"Dynatrace\"\n| filter event.type==\"VULNERABILITY_STATE_REPORT_EVENT\"\n| filter event.level==\"ENTITY\"\n| filter vulnerability.resolution.status == \"OPEN\" and vulnerability.mute.status == \"NOT_MUTED\"\n| dedup vulnerability.id, affected_entity.id\n// Apply PGI and Tag filters\n| expand related_entities.process_groups.ids, alias:pgi_id\n| lookup [\n    fetch dt.entity.process_group_instance\n    | fields id, entity.name, tags\n  ], sourceField:pgi_id, lookupField:id, fields:{pgi_name=entity.name, pgi_tags=tags}\n| filter ($Process_Group_Instance == \"All\" or pgi_name == $Process_Group_Instance)\n| filter ($Tag_Filter == \"OFF\") or ($Tag_Filter == \"ON\" and in(concat($Tag_Key, \":\", $Tag_Value), pgi_tags))\n// Apply severity filter\n| fieldsAdd severity=vulnerability.davis_assessment.level\n| filter in(severity, $Severity) or in(\"All\", $Severity)\n// Component 1: Vulnerability Score (weighted sum with linear scaling)\n| fieldsAdd davis_score=vulnerability.davis_assessment.score\n| fieldsAdd vuln_weight=if(severity==\"CRITICAL\", 10.0, \n    else:if(severity==\"HIGH\", 7.5, \n    else:if(severity==\"MEDIUM\", 4.0, else:1.5)))\n| fieldsAdd has_exploit=if(vulnerability.davis_assessment.exploit_status==\"AVAILABLE\", 3.0, else:1.0)\n| fieldsAdd has_cve=if(isNotNull(vulnerability.references.cve), 2.2, else:1.0)\n| fieldsAdd vuln_contribution=vuln_weight * has_exploit * has_cve\n| summarize \n    vuln_sum=sum(vuln_contribution),\n    vuln_count=count(),\n    unique_packages=countDistinctExact(affected_entity.vulnerable_component.name),\n    unique_entities=countDistinctExact(pgi_id),\n    oldest_vuln=min(vulnerability.first_seen),\n    newest_vuln=max(vulnerability.first_seen)\n// Calculate component scores\n| fieldsAdd vuln_score_raw=100 * sqrt(vuln_sum) / sqrt(500)\n| fieldsAdd vuln_score=if(vuln_score_raw > 100, 100, else:vuln_score_raw)\n// Supply chain: assume 200 total packages (simplified - would need SOFTWARE_COMPONENT fetch)\n| fieldsAdd supply_score=100 * sqrt(unique_packages / 200)\n// Topology: blast radius based on entity count\n| fieldsAdd topology_score=100 * (1 - exp(-0.05 * unique_entities))\n// Aging: days since oldest vulnerability\n| fieldsAdd age_days=(now() - oldest_vuln) / (1000 * 60 * 60 * 24)\n| fieldsAdd aging_score=if(age_days > 0, (age_days / 365) * 20, else:0)\n// Calculate HRPv2 Score\n| fieldsAdd hrp_score=(toDouble($HRP_Vuln_Weight) * vuln_score) + \n                      (toDouble($HRP_Supply_Weight) * supply_score) + \n                      (toDouble($HRP_Topology_Weight) * topology_score) + \n                      (toDouble($HRP_Aging_Weight) * aging_score)\n| fields `HRPv2 Score`=round(hrp_score, decimals:2)",
+      "visualization": "singleValue",
+      "visualizationSettings": {
+        "singleValue": {
+          "label": "HRPv2 Risk Score (0-100)",
+          "recordField": "HRPv2 Score",
+          "prefixIcon": "SecurityHighIcon",
+          "colorThresholdTarget": "value",
+          "trend": {
+            "isVisible": true
+          }
+        },
+        "thresholds": [
+          {
+            "id": 1,
+            "field": "HRPv2 Score",
+            "isEnabled": true,
+            "rules": [
+              {"id": 0, "color": "#2ab06f", "comparator": "<", "value": "20"},
+              {"id": 1, "color": "#008CDB", "comparator": "<", "value": "40"},
+              {"id": 2, "color": "#C9A000", "comparator": "<", "value": "60"},
+              {"id": 3, "color": "#DC172A", "comparator": "<", "value": "80"},
+              {"id": 4, "color": "#AB0C17", "comparator": "≥", "value": "80"}
+            ]
+          }
+        ]
+      }
+    },
+    "hrp_risk_rating": {
+      "title": "Risk Rating",
+      "type": "data",
+      "query": "fetch security.events\n| filter event.kind==\"SECURITY_EVENT\"\n| filter event.category==\"VULNERABILITY_MANAGEMENT\"\n| filter event.provider==\"Dynatrace\"\n| filter event.type==\"VULNERABILITY_STATE_REPORT_EVENT\"\n| filter event.level==\"ENTITY\"\n| filter vulnerability.resolution.status == \"OPEN\" and vulnerability.mute.status == \"NOT_MUTED\"\n| dedup vulnerability.id, affected_entity.id\n// Apply filters (same as overall score)\n| expand related_entities.process_groups.ids, alias:pgi_id\n| lookup [\n    fetch dt.entity.process_group_instance\n    | fields id, entity.name, tags\n  ], sourceField:pgi_id, lookupField:id, fields:{pgi_name=entity.name, pgi_tags=tags}\n| filter ($Process_Group_Instance == \"All\" or pgi_name == $Process_Group_Instance)\n| filter ($Tag_Filter == \"OFF\") or ($Tag_Filter == \"ON\" and in(concat($Tag_Key, \":\", $Tag_Value), pgi_tags))\n| fieldsAdd severity=vulnerability.davis_assessment.level\n| filter in(severity, $Severity) or in(\"All\", $Severity)\n// Quick HRP calculation\n| fieldsAdd davis_score=vulnerability.davis_assessment.score\n| fieldsAdd vuln_weight=if(severity==\"CRITICAL\", 10.0, else:if(severity==\"HIGH\", 7.5, else:if(severity==\"MEDIUM\", 4.0, else:1.5)))\n| fieldsAdd has_exploit=if(vulnerability.davis_assessment.exploit_status==\"AVAILABLE\", 3.0, else:1.0)\n| fieldsAdd vuln_contribution=vuln_weight * has_exploit\n| summarize \n    vuln_sum=sum(vuln_contribution),\n    entity_count=countDistinctExact(pgi_id)\n| fieldsAdd vuln_score=100 * sqrt(vuln_sum) / sqrt(500)\n| fieldsAdd topology_score=100 * (1 - exp(-0.05 * entity_count))\n| fieldsAdd hrp_score=(toDouble($HRP_Vuln_Weight) * vuln_score) + (toDouble($HRP_Topology_Weight) * topology_score)\n| fieldsAdd rating=if(hrp_score >= 80, \"CRITICAL\",\n    else:if(hrp_score >= 60, \"HIGH\",\n    else:if(hrp_score >= 40, \"MEDIUM\",\n    else:if(hrp_score >= 20, \"LOW\", else:\"MINIMAL\"))))\n| fields `Risk Rating`=rating",
+      "visualization": "singleValue",
+      "visualizationSettings": {
+        "singleValue": {
+          "label": "Risk Rating",
+          "recordField": "Risk Rating",
+          "colorThresholdTarget": "background"
+        },
+        "thresholds": [
+          {
+            "id": 1,
+            "field": "Risk Rating",
+            "isEnabled": true,
+            "rules": [
+              {"id": 0, "color": "#2ab06f", "comparator": "=", "value": "MINIMAL"},
+              {"id": 1, "color": "#008CDB", "comparator": "=", "value": "LOW"},
+              {"id": 2, "color": "#C9A000", "comparator": "=", "value": "MEDIUM"},
+              {"id": 3, "color": "#DC172A", "comparator": "=", "value": "HIGH"},
+              {"id": 4, "color": "#AB0C17", "comparator": "=", "value": "CRITICAL"}
+            ]
+          }
+        ]
+      }
+    },
+    "vuln_component_score": {
+      "title": "Vulnerability Component (60%)",
+      "type": "data",
+      "query": "fetch security.events\n| filter event.kind==\"SECURITY_EVENT\"\n| filter event.type==\"VULNERABILITY_STATE_REPORT_EVENT\"\n| filter event.level==\"ENTITY\"\n| filter vulnerability.resolution.status == \"OPEN\" and vulnerability.mute.status == \"NOT_MUTED\"\n| dedup vulnerability.id, affected_entity.id\n| expand related_entities.process_groups.ids, alias:pgi_id\n| lookup [\n    fetch dt.entity.process_group_instance | fields id, entity.name, tags\n  ], sourceField:pgi_id, lookupField:id, fields:{pgi_name=entity.name, pgi_tags=tags}\n| filter ($Process_Group_Instance == \"All\" or pgi_name == $Process_Group_Instance)\n| filter ($Tag_Filter == \"OFF\") or ($Tag_Filter == \"ON\" and in(concat($Tag_Key, \":\", $Tag_Value), pgi_tags))\n| fieldsAdd severity=vulnerability.davis_assessment.level\n| filter in(severity, $Severity) or in(\"All\", $Severity)\n| fieldsAdd vuln_weight=if(severity==\"CRITICAL\", 10.0, else:if(severity==\"HIGH\", 7.5, else:if(severity==\"MEDIUM\", 4.0, else:1.5)))\n| fieldsAdd has_exploit=if(vulnerability.davis_assessment.exploit_status==\"AVAILABLE\", 3.0, else:1.0)\n| fieldsAdd has_cve=if(isNotNull(vulnerability.references.cve), 2.2, else:1.0)\n| fieldsAdd contribution=vuln_weight * has_exploit * has_cve\n| summarize weighted_sum=sum(contribution)\n| fieldsAdd score=100 * sqrt(weighted_sum) / sqrt(500)\n| fieldsAdd final_score=if(score > 100, 100, else:round(score, decimals:2))\n| fields `Vulnerability Score`=final_score",
+      "visualization": "singleValue",
+      "visualizationSettings": {
+        "singleValue": {
+          "label": "Vulnerability Component",
+          "recordField": "Vulnerability Score",
+          "prefixIcon": "BugReportIcon"
+        },
+        "thresholds": [
+          {
+            "id": 1,
+            "field": "Vulnerability Score",
+            "isEnabled": true,
+            "rules": [
+              {"id": 0, "color": "#2ab06f", "comparator": "<", "value": "20"},
+              {"id": 1, "color": "#C9A000", "comparator": "<", "value": "60"},
+              {"id": 2, "color": "#DC172A", "comparator": "≥", "value": "60"}
+            ]
+          }
+        ]
+      }
+    },
+    "supply_component_score": {
+      "title": "Supply Chain Component (20%)",
+      "type": "data",
+      "query": "fetch security.events\n| filter event.kind==\"SECURITY_EVENT\"\n| filter event.type==\"VULNERABILITY_STATE_REPORT_EVENT\"\n| filter event.level==\"ENTITY\"\n| filter vulnerability.resolution.status == \"OPEN\" and vulnerability.mute.status == \"NOT_MUTED\"\n| dedup vulnerability.id, affected_entity.id\n| expand related_entities.process_groups.ids, alias:pgi_id\n| lookup [\n    fetch dt.entity.process_group_instance | fields id, entity.name, tags\n  ], sourceField:pgi_id, lookupField:id, fields:{pgi_name=entity.name, pgi_tags=tags}\n| filter ($Process_Group_Instance == \"All\" or pgi_name == $Process_Group_Instance)\n| filter ($Tag_Filter == \"OFF\") or ($Tag_Filter == \"ON\" and in(concat($Tag_Key, \":\", $Tag_Value), pgi_tags))\n| fieldsAdd severity=vulnerability.davis_assessment.level\n| filter in(severity, $Severity) or in(\"All\", $Severity)\n| summarize unique_packages=countDistinctExact(affected_entity.vulnerable_component.name)\n| fieldsAdd total_packages=200\n| fieldsAdd vuln_ratio=unique_packages / total_packages\n| fieldsAdd score=100 * sqrt(vuln_ratio)\n| fields `Supply Chain Score`=round(score, decimals:2), `Vulnerable Packages`=unique_packages, `Total Packages`=total_packages",
+      "visualization": "singleValue",
+      "visualizationSettings": {
+        "singleValue": {
+          "label": "Supply Chain Risk",
+          "recordField": "Supply Chain Score",
+          "prefixIcon": "NetworkIcon"
+        },
+        "thresholds": [
+          {
+            "id": 1,
+            "field": "Supply Chain Score",
+            "isEnabled": true,
+            "rules": [
+              {"id": 0, "color": "#2ab06f", "comparator": "<", "value": "20"},
+              {"id": 1, "color": "#C9A000", "comparator": "<", "value": "60"},
+              {"id": 2, "color": "#DC172A", "comparator": "≥", "value": "60"}
+            ]
+          }
+        ]
+      }
+    },
+    "topology_component_score": {
+      "title": "Topology Component (15%)",
+      "type": "data",
+      "query": "fetch security.events\n| filter event.kind==\"SECURITY_EVENT\"\n| filter event.type==\"VULNERABILITY_STATE_REPORT_EVENT\"\n| filter event.level==\"ENTITY\"\n| filter vulnerability.resolution.status == \"OPEN\" and vulnerability.mute.status == \"NOT_MUTED\"\n| dedup vulnerability.id, affected_entity.id\n| expand related_entities.process_groups.ids, alias:pgi_id\n| lookup [\n    fetch dt.entity.process_group_instance | fields id, entity.name, tags\n  ], sourceField:pgi_id, lookupField:id, fields:{pgi_name=entity.name, pgi_tags=tags}\n| filter ($Process_Group_Instance == \"All\" or pgi_name == $Process_Group_Instance)\n| filter ($Tag_Filter == \"OFF\") or ($Tag_Filter == \"ON\" and in(concat($Tag_Key, \":\", $Tag_Value), pgi_tags))\n| fieldsAdd severity=vulnerability.davis_assessment.level\n| filter in(severity, $Severity) or in(\"All\", $Severity)\n| summarize \n    entity_count=countDistinctExact(pgi_id),\n    host_count=countDistinctExact(related_entities.hosts.ids),\n    service_count=countDistinctExact(related_entities.services.ids)\n| fieldsAdd blast_radius=entity_count + host_count + service_count\n| fieldsAdd score=100 * (1 - exp(-0.05 * blast_radius))\n| fields `Topology Score`=round(score, decimals:2), `Affected Entities`=blast_radius",
+      "visualization": "singleValue",
+      "visualizationSettings": {
+        "singleValue": {
+          "label": "Topology Risk (Blast Radius)",
+          "recordField": "Topology Score",
+          "prefixIcon": "TopologyIcon"
+        },
+        "thresholds": [
+          {
+            "id": 1,
+            "field": "Topology Score",
+            "isEnabled": true,
+            "rules": [
+              {"id": 0, "color": "#2ab06f", "comparator": "<", "value": "20"},
+              {"id": 1, "color": "#C9A000", "comparator": "<", "value": "60"},
+              {"id": 2, "color": "#DC172A", "comparator": "≥", "value": "60"}
+            ]
+          }
+        ]
+      }
+    },
+    "aging_component_score": {
+      "title": "Aging Component (5%)",
+      "type": "data",
+      "query": "fetch security.events\n| filter event.kind==\"SECURITY_EVENT\"\n| filter event.type==\"VULNERABILITY_STATE_REPORT_EVENT\"\n| filter event.level==\"ENTITY\"\n| filter vulnerability.resolution.status == \"OPEN\" and vulnerability.mute.status == \"NOT_MUTED\"\n| dedup vulnerability.id, affected_entity.id\n| expand related_entities.process_groups.ids, alias:pgi_id\n| lookup [\n    fetch dt.entity.process_group_instance | fields id, entity.name, tags\n  ], sourceField:pgi_id, lookupField:id, fields:{pgi_name=entity.name, pgi_tags=tags}\n| filter ($Process_Group_Instance == \"All\" or pgi_name == $Process_Group_Instance)\n| filter ($Tag_Filter == \"OFF\") or ($Tag_Filter == \"ON\" and in(concat($Tag_Key, \":\", $Tag_Value), pgi_tags))\n| fieldsAdd severity=vulnerability.davis_assessment.level\n| filter in(severity, $Severity) or in(\"All\", $Severity)\n| fieldsAdd first_seen=vulnerability.first_seen\n| fieldsAdd age_days=(now() - first_seen) / (1000 * 60 * 60 * 24)\n| fieldsAdd severity_weight=if(severity==\"CRITICAL\", 15, else:if(severity==\"HIGH\", 8, else:if(severity==\"MEDIUM\", 3, else:1)))\n| fieldsAdd age_penalty=(age_days / 365) * severity_weight * 0.7\n| summarize \n    aging_sum=sum(age_penalty),\n    oldest_days=max(age_days),\n    avg_age=avg(age_days)\n| fieldsAdd score=if(aging_sum > 100, 100, else:aging_sum)\n| fields `Aging Score`=round(score, decimals:2), `Oldest (days)`=round(oldest_days, decimals:0), `Avg Age (days)`=round(avg_age, decimals:0)",
+      "visualization": "singleValue",
+      "visualizationSettings": {
+        "singleValue": {
+          "label": "Aging Risk",
+          "recordField": "Aging Score",
+          "prefixIcon": "ClockIcon"
+        },
+        "thresholds": [
+          {
+            "id": 1,
+            "field": "Aging Score",
+            "isEnabled": true,
+            "rules": [
+              {"id": 0, "color": "#2ab06f", "comparator": "<", "value": "20"},
+              {"id": 1, "color": "#C9A000", "comparator": "<", "value": "60"},
+              {"id": 2, "color": "#DC172A", "comparator": "≥", "value": "60"}
+            ]
+          }
+        ]
+      }
+    },
+    "vuln_severity_dist": {
+      "title": "Vulnerability Severity Distribution",
+      "type": "data",
+      "query": "fetch security.events\n| filter event.kind==\"SECURITY_EVENT\"\n| filter event.type==\"VULNERABILITY_STATE_REPORT_EVENT\"\n| filter event.level==\"ENTITY\"\n| filter vulnerability.resolution.status == \"OPEN\" and vulnerability.mute.status == \"NOT_MUTED\"\n| dedup vulnerability.id, affected_entity.id\n| expand related_entities.process_groups.ids, alias:pgi_id\n| lookup [\n    fetch dt.entity.process_group_instance | fields id, entity.name, tags\n  ], sourceField:pgi_id, lookupField:id, fields:{pgi_name=entity.name, pgi_tags=tags}\n| filter ($Process_Group_Instance == \"All\" or pgi_name == $Process_Group_Instance)\n| filter ($Tag_Filter == \"OFF\") or ($Tag_Filter == \"ON\" and in(concat($Tag_Key, \":\", $Tag_Value), pgi_tags))\n| fieldsAdd severity=vulnerability.davis_assessment.level\n| filter in(severity, $Severity) or in(\"All\", $Severity)\n| summarize count(), by:{severity}\n| sort severity asc",
+      "visualization": "barChart",
+      "visualizationSettings": {
+        "chartSettings": {
+          "colorPalette": "categorical"
+        },
+        "thresholds": []
+      }
+    },
+    "vulnerable_libraries": {
+      "title": "Vulnerable Libraries",
+      "type": "data",
+      "query": "fetch security.events\n| filter event.kind==\"SECURITY_EVENT\"\n| filter event.type==\"VULNERABILITY_STATE_REPORT_EVENT\"\n| filter event.level==\"ENTITY\"\n| filter vulnerability.resolution.status == \"OPEN\" and vulnerability.mute.status == \"NOT_MUTED\"\n| dedup vulnerability.id, affected_entity.id\n| expand related_entities.process_groups.ids, alias:pgi_id\n| lookup [\n    fetch dt.entity.process_group_instance | fields id, entity.name, tags\n  ], sourceField:pgi_id, lookupField:id, fields:{pgi_name=entity.name, pgi_tags=tags}\n| filter ($Process_Group_Instance == \"All\" or pgi_name == $Process_Group_Instance)\n| filter ($Tag_Filter == \"OFF\") or ($Tag_Filter == \"ON\" and in(concat($Tag_Key, \":\", $Tag_Value), pgi_tags))\n| fieldsAdd severity=vulnerability.davis_assessment.level\n| filter in(severity, $Severity) or in(\"All\", $Severity)\n| fieldsAdd package=affected_entity.vulnerable_component.name\n| summarize \n    Total=count(),\n    Critical=countIf(severity==\"CRITICAL\"),\n    High=countIf(severity==\"HIGH\"),\n    Medium=countIf(severity==\"MEDIUM\"),\n    Low=countIf(severity==\"LOW\"),\n    by:{package}\n| sort Critical desc, High desc\n| limit 20",
+      "visualization": "table",
+      "visualizationSettings": {
+        "table": {
+          "columnOrder": ["[\"package\"]", "[\"Total\"]", "[\"Critical\"]", "[\"High\"]", "[\"Medium\"]", "[\"Low\"]"]
+        }
+      }
+    },
+    "affected_entities_map": {
+      "title": "Affected Process Groups (Blast Radius)",
+      "type": "data",
+      "query": "fetch security.events\n| filter event.kind==\"SECURITY_EVENT\"\n| filter event.type==\"VULNERABILITY_STATE_REPORT_EVENT\"\n| filter event.level==\"ENTITY\"\n| filter vulnerability.resolution.status == \"OPEN\" and vulnerability.mute.status == \"NOT_MUTED\"\n| dedup vulnerability.id, affected_entity.id\n| expand related_entities.process_groups.ids, alias:pgi_id\n| lookup [\n    fetch dt.entity.process_group_instance | fields id, entity.name, tags\n  ], sourceField:pgi_id, lookupField:id, fields:{pgi_name=entity.name, pgi_tags=tags}\n| filter ($Process_Group_Instance == \"All\" or pgi_name == $Process_Group_Instance)\n| filter ($Tag_Filter == \"OFF\") or ($Tag_Filter == \"ON\" and in(concat($Tag_Key, \":\", $Tag_Value), pgi_tags))\n| fieldsAdd severity=vulnerability.davis_assessment.level\n| filter in(severity, $Severity) or in(\"All\", $Severity)\n| summarize \n    Total=count(),\n    Critical=countIf(severity==\"CRITICAL\"),\n    High=countIf(severity==\"HIGH\"),\n    by:{pgi_name}\n| sort Critical desc, High desc\n| limit 50",
+      "visualization": "honeycomb",
+      "visualizationSettings": {
+        "honeycomb": {
+          "dataMappings": {
+            "value": "Total"
+          },
+          "displayedFields": ["pgi_name"],
+          "labels": {
+            "showLabels": true
+          },
+          "colorMode": "custom-colors",
+          "customColors": [
+            {"id": 1, "value": 0, "color": "#2ab06f", "comparator": "≥"},
+            {"id": 2, "value": 1, "color": "#FF9999", "comparator": "≥"},
+            {"id": 3, "value": 5, "color": "#FF6B6B", "comparator": "≥"},
+            {"id": 4, "value": 10, "color": "#DB1F48", "comparator": "≥"},
+            {"id": 5, "value": 20, "color": "#AB0C17", "comparator": "≥"}
+          ]
+        }
+      }
+    },
+    "age_distribution": {
+      "title": "Vulnerability Age Distribution",
+      "type": "data",
+      "query": "fetch security.events\n| filter event.kind==\"SECURITY_EVENT\"\n| filter event.type==\"VULNERABILITY_STATE_REPORT_EVENT\"\n| filter event.level==\"ENTITY\"\n| filter vulnerability.resolution.status == \"OPEN\" and vulnerability.mute.status == \"NOT_MUTED\"\n| dedup vulnerability.id, affected_entity.id\n| expand related_entities.process_groups.ids, alias:pgi_id\n| lookup [\n    fetch dt.entity.process_group_instance | fields id, entity.name, tags\n  ], sourceField:pgi_id, lookupField:id, fields:{pgi_name=entity.name, pgi_tags=tags}\n| filter ($Process_Group_Instance == \"All\" or pgi_name == $Process_Group_Instance)\n| filter ($Tag_Filter == \"OFF\") or ($Tag_Filter == \"ON\" and in(concat($Tag_Key, \":\", $Tag_Value), pgi_tags))\n| fieldsAdd severity=vulnerability.davis_assessment.level\n| filter in(severity, $Severity) or in(\"All\", $Severity)\n| fieldsAdd age_days=(now() - vulnerability.first_seen) / (1000 * 60 * 60 * 24)\n| fieldsAdd age_bucket=if(age_days < 30, \"0-30 days\",\n    else:if(age_days < 90, \"30-90 days\",\n    else:if(age_days < 180, \"90-180 days\",\n    else:if(age_days < 365, \"180-365 days\", else:\">365 days\"))))\n| summarize count(), by:{age_bucket}\n| sort age_bucket asc",
+      "visualization": "barChart",
+      "visualizationSettings": {
+        "chartSettings": {
+          "colorPalette": "categorical"
+        }
+      }
+    },
+    "remediation_priorities": {
+      "title": "Top Remediation Priorities (by HRP Impact)",
+      "type": "data",
+      "query": "fetch security.events\n| filter event.kind==\"SECURITY_EVENT\"\n| filter event.type==\"VULNERABILITY_STATE_REPORT_EVENT\"\n| filter event.level==\"ENTITY\"\n| filter vulnerability.resolution.status == \"OPEN\" and vulnerability.mute.status == \"NOT_MUTED\"\n| dedup vulnerability.id, affected_entity.id\n| expand related_entities.process_groups.ids, alias:pgi_id\n| lookup [\n    fetch dt.entity.process_group_instance | fields id, entity.name, tags\n  ], sourceField:pgi_id, lookupField:id, fields:{pgi_name=entity.name, pgi_tags=tags}\n| filter ($Process_Group_Instance == \"All\" or pgi_name == $Process_Group_Instance)\n| filter ($Tag_Filter == \"OFF\") or ($Tag_Filter == \"ON\" and in(concat($Tag_Key, \":\", $Tag_Value), pgi_tags))\n| fieldsAdd severity=vulnerability.davis_assessment.level\n| filter in(severity, $Severity) or in(\"All\", $Severity)\n// Calculate impact score for each vulnerability\n| fieldsAdd vuln_weight=if(severity==\"CRITICAL\", 10.0, else:if(severity==\"HIGH\", 7.5, else:if(severity==\"MEDIUM\", 4.0, else:1.5)))\n| fieldsAdd exploit_mult=if(vulnerability.davis_assessment.exploit_status==\"AVAILABLE\", 3.0, else:1.0)\n| fieldsAdd cve_mult=if(isNotNull(vulnerability.references.cve), 2.2, else:1.0)\n| fieldsAdd age_days=(now() - vulnerability.first_seen) / (1000 * 60 * 60 * 24)\n| fieldsAdd age_weight=if(age_days > 365, 2.0, else:if(age_days > 180, 1.5, else:1.0))\n| fieldsAdd impact=vuln_weight * exploit_mult * cve_mult * age_weight\n| summarize \n    Impact=takeLast(impact),\n    Severity=takeLast(severity),\n    CVE=takeLast(vulnerability.references.cve),\n    Package=takeLast(affected_entity.vulnerable_component.name),\n    Age_days=takeLast(age_days),\n    Affected_PGIs=count(),\n    Has_Exploit=takeLast(vulnerability.davis_assessment.exploit_status),\n    URL=takeLast(concat($Environment_URL, \"ui/apps/dynatrace.security.vulnerabilities/vulnerabilities/\", vulnerability.id)),\n    by:{vulnerability.display_id}\n| fields \n    ID=vulnerability.display_id,\n    Impact=round(Impact, decimals:2),\n    Severity,\n    CVE,\n    Package,\n    `Age (days)`=round(Age_days, decimals:0),\n    `Affected PGIs`=Affected_PGIs,\n    `Exploit Status`=Has_Exploit,\n    `Details`=URL\n| sort Impact desc\n| limit 20",
+      "visualization": "table",
+      "visualizationSettings": {
+        "table": {
+          "columnOrder": ["[\"ID\"]", "[\"Impact\"]", "[\"Severity\"]", "[\"CVE\"]", "[\"Package\"]", "[\"Age (days)\"]", "[\"Affected PGIs\"]", "[\"Exploit Status\"]", "[\"Details\"]"],
+          "columnWidths": {
+            "[\"ID\"]": 80,
+            "[\"Impact\"]": 80,
+            "[\"Package\"]": 200
+          }
+        }
+      }
+    },
+    "hrp_trend": {
+      "title": "HRPv2 Score Trend (Last 7 Days)",
+      "type": "data",
+      "query": "fetch security.events, from:now()-7d\n| filter event.kind==\"SECURITY_EVENT\"\n| filter event.type==\"VULNERABILITY_STATE_REPORT_EVENT\"\n| filter event.level==\"ENTITY\"\n| filter vulnerability.resolution.status == \"OPEN\" and vulnerability.mute.status == \"NOT_MUTED\"\n| expand related_entities.process_groups.ids, alias:pgi_id\n| lookup [\n    fetch dt.entity.process_group_instance | fields id, entity.name, tags\n  ], sourceField:pgi_id, lookupField:id, fields:{pgi_name=entity.name, pgi_tags=tags}\n| filter ($Process_Group_Instance == \"All\" or pgi_name == $Process_Group_Instance)\n| filter ($Tag_Filter == \"OFF\") or ($Tag_Filter == \"ON\" and in(concat($Tag_Key, \":\", $Tag_Value), pgi_tags))\n| fieldsAdd severity=vulnerability.davis_assessment.level\n| filter in(severity, $Severity) or in(\"All\", $Severity)\n| fieldsAdd vuln_weight=if(severity==\"CRITICAL\", 10.0, else:if(severity==\"HIGH\", 7.5, else:if(severity==\"MEDIUM\", 4.0, else:1.5)))\n| fieldsAdd has_exploit=if(vulnerability.davis_assessment.exploit_status==\"AVAILABLE\", 3.0, else:1.0)\n| fieldsAdd contribution=vuln_weight * has_exploit\n| makeTimeseries {\n    vuln_sum=sum(contribution),\n    entity_count=countDistinctExact(pgi_id)\n  }, interval:6h\n| fieldsAdd vuln_score=100 * sqrt(vuln_sum) / sqrt(500)\n| fieldsAdd topology_score=100 * (1 - exp(-0.05 * entity_count))\n| fieldsAdd hrp_score=(toDouble($HRP_Vuln_Weight) * vuln_score) + (toDouble($HRP_Topology_Weight) * topology_score)\n| fields timestamp, `HRP Score`=round(hrp_score, decimals:2)",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "chartSettings": {
+          "colorPalette": "categorical",
+          "gapPolicy": "connect"
+        }
+      }
+    },
+    "vulnerabilities_by_pgi": {
+      "title": "Vulnerabilities by Process Group Instance",
+      "type": "data",
+      "query": "fetch security.events\n| filter event.kind==\"SECURITY_EVENT\"\n| filter event.type==\"VULNERABILITY_STATE_REPORT_EVENT\"\n| filter event.level==\"ENTITY\"\n| filter vulnerability.resolution.status == \"OPEN\" and vulnerability.mute.status == \"NOT_MUTED\"\n| dedup vulnerability.id, affected_entity.id\n| expand related_entities.process_groups.ids, alias:pgi_id\n| lookup [\n    fetch dt.entity.process_group_instance | fields id, entity.name, tags\n  ], sourceField:pgi_id, lookupField:id, fields:{pgi_name=entity.name, pgi_tags=tags}\n| filter ($Process_Group_Instance == \"All\" or pgi_name == $Process_Group_Instance)\n| filter ($Tag_Filter == \"OFF\") or ($Tag_Filter == \"ON\" and in(concat($Tag_Key, \":\", $Tag_Value), pgi_tags))\n| fieldsAdd severity=vulnerability.davis_assessment.level\n| filter in(severity, $Severity) or in(\"All\", $Severity)\n// Calculate HRP contribution for each PGI\n| fieldsAdd vuln_weight=if(severity==\"CRITICAL\", 10.0, else:if(severity==\"HIGH\", 7.5, else:if(severity==\"MEDIUM\", 4.0, else:1.5)))\n| fieldsAdd exploit_mult=if(vulnerability.davis_assessment.exploit_status==\"AVAILABLE\", 3.0, else:1.0)\n| fieldsAdd contribution=vuln_weight * exploit_mult\n| summarize \n    Total=count(),\n    Critical=countIf(severity==\"CRITICAL\"),\n    High=countIf(severity==\"HIGH\"),\n    Medium=countIf(severity==\"MEDIUM\"),\n    Low=countIf(severity==\"LOW\"),\n    HRP_Contribution=sum(contribution),\n    by:{pgi_name}\n| fieldsAdd `HRP Impact`=round(100 * sqrt(HRP_Contribution) / sqrt(500), decimals:2)\n| fields \n    `Process Group`=pgi_name,\n    Total,\n    Critical,\n    High,\n    Medium,\n    Low,\n    `HRP Impact`\n| sort `HRP Impact` desc\n| limit 50",
+      "visualization": "table",
+      "visualizationSettings": {
+        "table": {
+          "columnOrder": ["[\"Process Group\"]", "[\"HRP Impact\"]", "[\"Total\"]", "[\"Critical\"]", "[\"High\"]", "[\"Medium\"]", "[\"Low\"]"],
+          "columnWidths": {
+            "[\"Process Group\"]": 300
+          }
+        }
+      }
+    },
+    "detailed_vulnerabilities": {
+      "title": "Detailed Vulnerability List",
+      "type": "data",
+      "query": "fetch security.events\n| filter event.kind==\"SECURITY_EVENT\"\n| filter event.type==\"VULNERABILITY_STATE_REPORT_EVENT\"\n| filter event.level==\"ENTITY\"\n| filter vulnerability.resolution.status == \"OPEN\" and vulnerability.mute.status == \"NOT_MUTED\"\n| dedup vulnerability.id, affected_entity.id\n| expand related_entities.process_groups.ids, alias:pgi_id\n| lookup [\n    fetch dt.entity.process_group_instance | fields id, entity.name, tags\n  ], sourceField:pgi_id, lookupField:id, fields:{pgi_name=entity.name, pgi_tags=tags}\n| filter ($Process_Group_Instance == \"All\" or pgi_name == $Process_Group_Instance)\n| filter ($Tag_Filter == \"OFF\") or ($Tag_Filter == \"ON\" and in(concat($Tag_Key, \":\", $Tag_Value), pgi_tags))\n| fieldsAdd severity=vulnerability.davis_assessment.level\n| filter in(severity, $Severity) or in(\"All\", $Severity)\n| fields \n    ID=vulnerability.display_id,\n    CVE=vulnerability.references.cve,\n    Severity=severity,\n    `Davis Score`=vulnerability.davis_assessment.score,\n    Title=vulnerability.title,\n    Package=affected_entity.vulnerable_component.name,\n    `Process Group`=pgi_name,\n    Exposure=vulnerability.davis_assessment.exposure_status,\n    Exploit=vulnerability.davis_assessment.exploit_status,\n    `Details`=concat($Environment_URL, \"ui/apps/dynatrace.security.vulnerabilities/vulnerabilities/\", vulnerability.id)\n| sort `Davis Score` desc\n| limit 100",
+      "visualization": "table",
+      "visualizationSettings": {
+        "table": {
+          "columnOrder": ["[\"ID\"]", "[\"CVE\"]", "[\"Severity\"]", "[\"Davis Score\"]", "[\"Title\"]", "[\"Package\"]", "[\"Process Group\"]", "[\"Exposure\"]", "[\"Exploit\"]", "[\"Details\"]"],
+          "lineWrapIds": [["Title"]],
+          "columnWidths": {
+            "[\"Title\"]": 250,
+            "[\"Package\"]": 150,
+            "[\"Process Group\"]": 200
+          }
+        }
+      }
+    },
+    "section_component_breakdown": {
+      "type": "markdown",
+      "content": "### HRPv2 Component Breakdown\n___\nEach component contributes to the overall risk score based on configurable weights."
+    },
+    "section_remediation": {
+      "type": "markdown",
+      "content": "### Remediation Priorities & Trends\n___\nVulnerabilities ranked by potential impact on HRP score if remediated."
+    },
+    "section_detailed": {
+      "type": "markdown",
+      "content": "### Detailed Analysis\n___\nIn-depth vulnerability data by process group and library."
+    }
+  },
+  "layouts": {
+    "header": {"x": 0, "y": 0, "w": 24, "h": 3},
+    "hrp_overall_score": {"x": 0, "y": 3, "w": 6, "h": 3},
+    "hrp_risk_rating": {"x": 6, "y": 3, "w": 6, "h": 3},
+    "vuln_component_score": {"x": 12, "y": 3, "w": 3, "h": 3},
+    "supply_component_score": {"x": 15, "y": 3, "w": 3, "h": 3},
+    "topology_component_score": {"x": 18, "y": 3, "w": 3, "h": 3},
+    "aging_component_score": {"x": 21, "y": 3, "w": 3, "h": 3},
+    "section_component_breakdown": {"x": 0, "y": 6, "w": 24, "h": 1},
+    "vuln_severity_dist": {"x": 0, "y": 7, "w": 8, "h": 5},
+    "vulnerable_libraries": {"x": 8, "y": 7, "w": 8, "h": 5},
+    "affected_entities_map": {"x": 16, "y": 7, "w": 8, "h": 5},
+    "age_distribution": {"x": 0, "y": 12, "w": 24, "h": 4},
+    "section_remediation": {"x": 0, "y": 16, "w": 24, "h": 1},
+    "remediation_priorities": {"x": 0, "y": 17, "w": 24, "h": 6},
+    "hrp_trend": {"x": 0, "y": 23, "w": 24, "h": 5},
+    "section_detailed": {"x": 0, "y": 28, "w": 24, "h": 1},
+    "vulnerabilities_by_pgi": {"x": 0, "y": 29, "w": 24, "h": 6},
+    "detailed_vulnerabilities": {"x": 0, "y": 35, "w": 24, "h": 8}
+  },
+  "importedWithCode": false,
+  "settings": {}
+}
