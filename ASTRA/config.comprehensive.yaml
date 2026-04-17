@@ -251,6 +251,30 @@ output:
 
 
 # ┌──────────────────────────────────────────────────────────────────────────────┐
+# │ METRICS CONFIGURATION                                                        │
+# │                                                                              │
+# │ Push HRP v2 risk scores back to Dynatrace as custom metrics.               │
+# │ This enables dashboarding, alerting, and trending on risk scores.           │
+# │                                                                              │
+# │ Requirements:                                                                │
+# │   • API token must have the 'metrics.ingest' (v2) scope                    │
+# │                                                                              │
+# │ Metrics pushed:                                                              │
+# │   • custom.astra.hrp.score         - Overall HRP score (0-100)             │
+# │   • custom.astra.hrp.vulnerability - Overall vulnerability component       │
+# │   • custom.astra.hrp.supply_chain  - Overall supply chain component        │
+# │   • custom.astra.hrp.topology      - Overall topology component            │
+# │   • custom.astra.hrp.aging         - Overall aging component               │
+# │   • custom.astra.hrp.entity.score  - Per-entity HRP score (with dimension) │
+# │   • custom.astra.hrp.entity.*      - Per-entity component scores           │
+# └──────────────────────────────────────────────────────────────────────────────┘
+metrics:
+  # Enable pushing risk scores to Dynatrace as custom metrics
+  # Set to true to push metrics after each assessment run
+  push_to_dynatrace: false
+
+
+# ┌──────────────────────────────────────────────────────────────────────────────┐
 # │ VULNERABILITY EXCLUSIONS                                                     │
 # │                                                                              │
 # │ Simulate "what-if" scenarios by excluding specific vulnerabilities.         │

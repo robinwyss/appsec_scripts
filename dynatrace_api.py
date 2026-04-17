@@ -33,6 +33,28 @@ class DynatraceApi:
         print('.', end="", flush=True) # print a dot for every call to show activity
         return response.json()
 
+    def ingestMetrics(self, metric_lines):
+        """
+        Pushes custom metrics to Dynatrace via the Metrics v2 ingest API.
+        Requires 'metrics.ingest' token scope.
+        param: string metric_lines: newline-separated metric lines in Dynatrace metric line format
+        return: response as json
+        """
+        url = self.tenant + '/api/v2/metrics/ingest'
+        headers = {
+            'Authorization': 'Api-Token ' + self.apiToken,
+            'Content-Type': 'text/plain; charset=utf-8'
+        }
+        start_time = time.time()
+        response = requests.post(url, headers=headers, data=metric_lines, verify=self.verifySSL)
+        logging.info(f'Metric Ingest Status: {response.status_code} (took {(time.time() - start_time):.2f}s)')
+        logging.debug(f'Response: {response.content}')
+        if response.status_code not in (200, 202):
+            logging.error(f'Metric ingest failed: {response.status_code} ({response.reason}), Response: {response.content}')
+            raise RuntimeError(f'Metric ingest failed: {response.status_code} ({response.reason})', response.content)
+        print('.', end="", flush=True)
+        return response.json()
+
     def getAttacks(self):
         """
         get a list of all attacks

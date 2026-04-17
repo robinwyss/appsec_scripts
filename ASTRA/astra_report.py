@@ -1387,6 +1387,71 @@ class PdfGenerator:
 
 
 
+def push_metrics_to_dynatrace(api: DynatraceApi, overall_risk: Dict[str, Any], 
+                               entity_risks: List[Dict[str, Any]]) -> None:
+    """Push HRP v2 risk scores to Dynatrace as custom metrics.
+    
+    Requires the API token to have the 'metrics.ingest' scope.
+    
+    Metrics pushed:
+        - custom.astra.hrp.score: Overall HRP score (gauge, 0-100)
+        - custom.astra.hrp.vulnerability: Vulnerability component score per entity
+        - custom.astra.hrp.supply_chain: Supply chain component score per entity
+        - custom.astra.hrp.topology: Topology component score per entity
+        - custom.astra.hrp.aging: Aging component score per entity
+    """
+    logger.info("Pushing risk metrics to Dynatrace...")
+
+    metric_lines = []
+
+    # Overall score (no entity dimension)
+    metric_lines.append(f"custom.astra.hrp.score {overall_risk['score']}")
+
+    # Overall component scores
+    components = overall_risk.get('components', {})
+    if components:
+        for component_name in ('vulnerability_score', 'supply_chain_score', 'topology_score', 'aging_score'):
+            metric_key = component_name.replace('_score', '')
+            value = components.get(component_name, 0)
+            metric_lines.append(f"custom.astra.hrp.{metric_key} {value}")
+
+    # Per-entity scores
+    for entity in entity_risks:
+        entity_id = entity.get('entity_id', '')
+        if not entity_id:
+            continue
+
+        # Determine the dimension key based on entity type
+        entity_type = entity.get('entity_type', '').upper()
+        if 'PROCESS_GROUP_INSTANCE' in entity_type or 'PROCESS_GROUP_INSTANCE' in entity_id:
+            dim_key = 'dt.entity.process_group_instance'
+        elif 'PROCESS_GROUP' in entity_type or 'PROCESS_GROUP' in entity_id:
+            dim_key = 'dt.entity.process_group'
+        elif 'HOST' in entity_type or 'HOST' in entity_id:
+            dim_key = 'dt.entity.host'
+        else:
+            dim_key = 'entity'
+
+        dim = f'{dim_key}="{entity_id}"'
+        metric_lines.append(f"custom.astra.hrp.entity.score,{dim} {entity['risk_score']}")
+
+        entity_components = entity.get('components', {})
+        if entity_components:
+            for component_name in ('vulnerability_score', 'supply_chain_score', 'topology_score', 'aging_score'):
+                metric_key = component_name.replace('_score', '')
+                value = entity_components.get(component_name, 0)
+                metric_lines.append(f"custom.astra.hrp.entity.{metric_key},{dim} {value}")
+
+    # Dynatrace accepts max 1000 lines per ingest call
+    batch_size = 1000
+    total = len(metric_lines)
+    for i in range(0, total, batch_size):
+        batch = '\n'.join(metric_lines[i:i + batch_size])
+        api.ingestMetrics(batch)
+
+    logger.info(f"Successfully pushed {total} metric lines to Dynatrace")
+
+
 def run_assessment(config: AstraConfig) -> str:
     """Execute risk assessment and generate reports.
     
@@ -1438,6 +1503,14 @@ def run_assessment(config: AstraConfig) -> str:
     # Generate PDF
     pdf_generator = PdfGenerator(config)
     pdf_file = pdf_generator.generate(json_file)
+    
+    # Push metrics to Dynatrace (if enabled)
+    if config.get('metrics.push_to_dynatrace', False):
+        try:
+            push_metrics_to_dynatrace(api, overall_risk, entity_risks)
+        except Exception as e:
+            logger.error(f"Failed to push metrics to Dynatrace: {e}")
+            logger.error("Ensure your API token has the 'metrics.ingest' scope")
     
     logger.info("="*80)
     logger.info("Assessment Complete!")
