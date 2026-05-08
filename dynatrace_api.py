@@ -79,7 +79,7 @@ class DynatraceApi:
         get a list of all security problems from the specified environment
         makes subsequent calls to the API if the results are paged.
         """
-        return self.__querySecurityProblems('/api/v2/securityProblems?securityProblemSelector=vulnerabilityType%28%22THIRD_PARTY%22%29&pageSize=500')
+        return self.__querySecurityProblems('/api/v2/securityProblems?securityProblemSelector=vulnerabilityType("THIRD_PARTY"),status("OPEN")&pageSize=500')
     
     def getRemediationItems(self, securityProblem):
         """

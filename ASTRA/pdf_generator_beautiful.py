@@ -456,9 +456,10 @@ class BeautifulPDFGenerator:
             severity_data['CRITICAL'],
             severity_data['HIGH'],
             severity_data['MEDIUM'],
-            severity_data['LOW']
+            severity_data['LOW'],
+            severity_data.get('NONE', 0)
         ]]
-        chart.categoryAxis.categoryNames = ['Critical', 'High', 'Medium', 'Low']
+        chart.categoryAxis.categoryNames = ['Critical', 'High', 'Medium', 'Low', 'None']
         chart.bars[0].fillColor = self.colors.CRITICAL
         chart.bars.strokeColor = None
         chart.valueAxis.valueMin = 0
@@ -743,6 +744,12 @@ class BeautifulPDFGenerator:
                 str(by_sev['LOW']),
                 f"{self._calculate_percentage(by_sev['LOW'], summary['total_vulnerabilities'])}%",
                 'Monitor'
+            ],
+            [
+                Paragraph('<font color="#9e9e9e"><b>● None</b></font>', styles['AstraBodyText']),
+                str(by_sev.get('NONE', 0)),
+                f"{self._calculate_percentage(by_sev.get('NONE', 0), summary['total_vulnerabilities'])}%",
+                'Informational'
             ]
         ]
         
