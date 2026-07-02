@@ -1484,12 +1484,56 @@ def run_assessment(config: AstraConfig) -> str:
     # Log overall risk (HRP v2.0: 0-100 scale)
     logger.info(f"Overall Risk Score: {overall_risk['score']}/100 ({overall_risk['rating']})")
     
+    # Build host lookup: host_id -> {name, ips}
+    # IP addresses are stored under various property names depending on the Dynatrace version
+    host_lookup = {}
+    for host in data.get('hosts', []):
+        host_id = host.get('entityId', '')
+        host_name = host.get('displayName', host_id)
+        props = host.get('properties', {})
+        # Try known property names for IP addresses and log which one is present.
+        ip_addresses = []
+        ip_source_key = None
+        for key in ('ipAddresses', 'publicIpAddresses', 'privateIpAddresses'):
+            value = props.get(key)
+            if value:
+                ip_addresses = value
+                ip_source_key = key
+                break
+
+        if not ip_source_key:
+            ip_related_keys = sorted(k for k in props.keys() if 'ip' in k.lower())
+            logger.debug(f"Host {host_name} ({host_id}) has no known IP key. IP-like property keys: {ip_related_keys}")
+
+        if isinstance(ip_addresses, str):
+            ip_addresses = [ip_addresses]
+
+        logger.debug(
+            f"Host {host_name} ({host_id}) IP source: {ip_source_key or 'none'}; "
+            f"count={len(ip_addresses)}; sample={ip_addresses[0] if ip_addresses else 'n/a'}"
+        )
+
+        host_lookup[host_id] = {
+            'name': host_name,
+            'ips': ip_addresses if ip_addresses else []
+        }
+
     # Calculate entity-level risks
     # Note: Only calculates for process groups in data['process_groups'], which are already filtered
     entity_risks = []
     for pg in data['process_groups']:
         entity_risk = calculator.calculate_entity_risk(pg, data['security_problems'])
         if entity_risk['vulnerability_count'] > 0:
+            # Collect unique host IDs referenced across this entity's vulnerabilities
+            host_ids_seen = set()
+            for vuln in entity_risk.get('vulnerabilities', []):
+                for h in vuln.get('relatedEntities', {}).get('hosts', []):
+                    h_id = h.get('id', '')
+                    if h_id:
+                        host_ids_seen.add(h_id)
+            entity_risk['hosts'] = [
+                host_lookup[h_id] for h_id in host_ids_seen if h_id in host_lookup
+            ]
             entity_risks.append(entity_risk)
     
     logger.info(f"Analyzed {len(entity_risks)} entities with vulnerabilities")

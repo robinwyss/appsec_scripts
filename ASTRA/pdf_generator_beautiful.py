@@ -780,13 +780,13 @@ class BeautifulPDFGenerator:
         story.append(PageBreak())
     
     def _add_remediation_priorities(self, story: list, data: dict, styles):
-        """Add remediation priorities showing top 5 vulnerabilities for top 3 PGIs."""
-        story.append(Paragraph("Top Remediation Priorities by Process Group Instance", styles['SectionHeading']))
+        """Add all vulnerabilities for every PGI, including host names and IPs."""
+        story.append(Paragraph("Vulnerabilities by Process Group Instance", styles['SectionHeading']))
         story.append(Spacer(1, 0.3*cm))
         
         story.append(Paragraph(
-            "The following shows the top 5 vulnerabilities for each of the highest-risk Process Group Instances (PGIs). "
-            "Vulnerabilities are ranked by Davis Security Score, which provides context-aware risk assessment.",
+            "All open vulnerabilities for each Process Group Instance (PGI), sorted by Davis Security Score. "
+            "Host names and IP addresses are listed below each PGI header.",
             styles['AstraBodyText']
         ))
         story.append(Spacer(1, 0.5*cm))
@@ -802,15 +802,14 @@ class BeautifulPDFGenerator:
             story.append(PageBreak())
             return
         
-        # Sort entities by risk score and get top 3
+        # Sort entities by risk score descending — show ALL of them
         sorted_entities = sorted(entities, key=lambda e: e.get('risk_score', 0), reverse=True)
-        top_entities = sorted_entities[:min(3, len(sorted_entities))]
         
         risk_model = data['overall_risk'].get('model', 'CWRS')
         scale_max = "10" if risk_model in ['REI', 'HRP'] else "100"
         
-        # Create a table for each of the top PGIs
-        for entity_idx, entity in enumerate(top_entities, 1):
+        # Create a table for each PGI
+        for entity_idx, entity in enumerate(sorted_entities, 1):
             entity_name = entity.get('entity_name', 'Unknown')
             entity_id = entity.get('entity_id', '')
             entity_risk = entity.get('risk_score', 0)
@@ -827,21 +826,34 @@ class BeautifulPDFGenerator:
                 f"<font size=9>Risk Score: {entity_risk}/{scale_max} | {entity.get('vulnerability_count', 0)} vulnerabilities</font>",
                 styles['SmallText']
             ))
+
+            # Host names and IPs
+            hosts = entity.get('hosts', [])
+            if hosts:
+                host_parts = []
+                for h in hosts:
+                    h_name = h.get('name', '')
+                    h_ips = h.get('ips', [])
+                    ip_str = ', '.join(h_ips) if h_ips else 'N/A'
+                    host_parts.append(f"{h_name} ({ip_str})")
+                story.append(Paragraph(
+                    f"<font size=8><b>Host(s):</b> {' | '.join(host_parts)}</font>",
+                    styles['SmallText']
+                ))
             story.append(Spacer(1, 0.3*cm))
             
-            # Get vulnerabilities for this entity and sort by Davis Score
+            # Get ALL vulnerabilities for this entity, sorted by Davis Score
             entity_vulns = entity.get('vulnerabilities', [])
             if not entity_vulns:
                 story.append(Paragraph("<i>No vulnerabilities found for this entity.</i>", styles['SmallText']))
                 continue
             
-            # Sort by Davis Security Score (riskScore) and get top 5
             sorted_vulns = sorted(
                 entity_vulns,
                 key=lambda v: v.get('riskAssessment', {}).get('riskScore', 
                               v.get('riskAssessment', {}).get('baseRiskScore', 0)),
                 reverse=True
-            )[:5]
+            )
             
             # Create table for this entity's vulnerabilities
             table_data = [[
@@ -855,10 +867,13 @@ class BeautifulPDFGenerator:
                 # Format vulnerability title with hyperlink
                 title = vuln.get('title', 'Unknown')
                 cve_id = vuln.get('cveId')
+                # cveIds may be a list
+                if not cve_id:
+                    cve_ids_list = vuln.get('cveIds', [])
+                    cve_id = cve_ids_list[0] if cve_ids_list else None
                 security_problem_id = vuln.get('securityProblemId', '')
                 tenant_url = data.get('metadata', {}).get('tenant_url', '')
                 
-                # Create hyperlink to security problem if we have the URL and ID
                 if security_problem_id and tenant_url:
                     sp_url = f"{tenant_url}/ui/security/vulnerabilities/{security_problem_id}"
                     if cve_id:
@@ -933,16 +948,16 @@ class BeautifulPDFGenerator:
     
     def _add_entity_details(self, story: list, data: dict, styles):
         """Add entity risk details with improved styling."""
-        story.append(Paragraph("High-Risk Entities", styles['SectionHeading']))
+        story.append(Paragraph("Risk Assessment by Entity", styles['SectionHeading']))
         story.append(Spacer(1, 0.5*cm))
         
-        # Sort and filter entities
+        # Sort entities by risk score descending, include all risk ratings
         entities = sorted(data['entities'], key=lambda x: x['risk_score'], reverse=True)
-        high_risk_entities = [e for e in entities if e['risk_rating'] in ['HIGH', 'CRITICAL']][:10]
+        high_risk_entities = entities[:10]
         
         if not high_risk_entities:
             story.append(Paragraph(
-                "No high-risk entities identified. All entities are within acceptable risk thresholds.",
+                "No entities found in the assessment scope.",
                 styles['AstraBodyText']
             ))
             story.append(PageBreak())

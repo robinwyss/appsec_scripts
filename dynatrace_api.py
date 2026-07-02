@@ -210,7 +210,7 @@ class DynatraceApi:
         Get all hosts with the relationships to processes (PGIs)
         :return list of entities (dictionary)
         """
-        return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf,managementZones,properties.memoryTotal,properties.monitoringMode&entitySelector=type("HOST")&from='+timeframe)
+        return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf,managementZones,properties&entitySelector=type("HOST")&from='+timeframe)
     
     
     @lru_cache(maxsize=None)
@@ -222,7 +222,7 @@ class DynatraceApi:
         """
         ids = entityId.split(',')
         entityIds = ', '.join(f'"{i}"' for i in ids)
-        return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf,managementZones,properties.memoryTotal,properties.monitoringMode&entitySelector=entityId('+entityIds+')&from='+timeframe)
+        return self.getAllEntities('/api/v2/entities?pageSize=500&fields=+toRelationships.isProcessOf,managementZones,properties&entitySelector=entityId('+entityIds+')&from='+timeframe)
 
     def getAllEntitiesByIDs(self, endpoint, entityRefs):
         """
